@@ -1,7 +1,8 @@
 package de.draradech.flowermap;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -32,7 +33,7 @@ public class FlowerMapRenderer extends GuiComponent {
     DynamicTexture texture = null;
     AbstractTexture pointer;
     
-    HashMap<BlockState, Integer> colorMap = new HashMap<BlockState, Integer>();
+    Map<BlockState, Integer> colorMap = new LinkedHashMap<BlockState, Integer>();
     int rx, ry, rz;
     Thread renderThread;
     boolean rendering;
@@ -127,11 +128,32 @@ public class FlowerMapRenderer extends GuiComponent {
         }
         
         RenderSystem.setShader(GameRenderer::getPositionTexShader);
+        
         RenderSystem.setShaderTexture(0, texture.getId());
         blit(poseStack, (int)width - 256 - 5, 5, 0, 0, 256, 256);
-        RenderSystem.setShaderTexture(0, pointer.getId());
+        
+        if (FlowerMapMain.config.legend) {
+            minecraft.getProfiler().push("legend");
+            poseStack.pushPose();
+            poseStack.scale(FlowerMapMain.config.legendScale / FlowerMapMain.config.scale, FlowerMapMain.config.legendScale / FlowerMapMain.config.scale, 1.0f);
+            RenderSystem.disableBlend();
+            int i = 0;
+            for (Map.Entry<BlockState, Integer> e : colorMap.entrySet())
+            {
+                int col = e.getValue();
+                int r = col & 0xff;
+                int g = (col >> 8) & 0xff;
+                int b = (col >> 16) & 0xff;
+                fill(poseStack, 5, 5 + i * 12, 15, 15 + i * 12, 0xff000000 | r << 16 | g << 8 | b);
+                minecraft.font.drawShadow(poseStack, e.getKey().getBlock().getName(), 17, 7 + i++ * 12, 0xffffffff);
+            }
+            poseStack.popPose();
+            minecraft.getProfiler().pop();
+        }
+        
         poseStack.translate((int)width - 256 - 5 + 128, 5 + 128, 0);
         poseStack.mulPose(Vector3f.ZP.rotationDegrees(minecraft.player.getYRot() + 180.0f));
+        RenderSystem.setShaderTexture(0, pointer.getId());
         blit(poseStack, -8, -9, 0, 0, 16, 16, 16, 16);
         
         RenderSystem.setProjectionMatrix(before);

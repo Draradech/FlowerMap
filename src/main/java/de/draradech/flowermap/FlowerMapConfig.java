@@ -8,4 +8,8 @@ import me.shedaniel.autoconfig.annotation.ConfigEntry;
 public class FlowerMapConfig implements ConfigData {
     @ConfigEntry.Category(value = "main")
     public float scale = 2.0f;
+    @ConfigEntry.Category(value = "main")
+    public boolean legend = true;
+    @ConfigEntry.Category(value = "main")
+    public float legendScale = 2.0f;
 }

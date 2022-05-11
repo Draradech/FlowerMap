@@ -1,6 +1,8 @@
 {
 "text.autoconfig.flowermap.title":"Flower Map",
 "text.autoconfig.flowermap.option.scale":"Map scale",
+"text.autoconfig.flowermap.option.legend":"Legend enabled",
+"text.autoconfig.flowermap.option.legendScale":"Legend scale",
 "category.flowermap":"Flower Map",
 "key.flowermap.toggle":"Toggle Flower Map"
 }
