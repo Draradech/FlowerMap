@@ -6,5 +6,7 @@ Shows the flower gradient, minimap-style. As the map is 3-dimensional since 1.18
 
 ![High Y](https://raw.githubusercontent.com/Draradech/FlowerMap/master/doc/shot2.jpg)
 
-![Settings](https://raw.githubusercontent.com/Draradech/FlowerMap/master/doc/settings.jpg)
+![Settings](https://raw.githubusercontent.com/Draradech/FlowerMap/master/doc/settings.png)
+
+![Keybind](https://raw.githubusercontent.com/Draradech/FlowerMap/master/doc/keybind.png)
 
