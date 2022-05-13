@@ -27,7 +27,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
 import net.minecraft.world.level.levelgen.feature.configurations.RandomPatchConfiguration;
 import net.minecraft.world.level.levelgen.feature.configurations.SimpleBlockConfiguration;
-import net.minecraft.world.level.levelgen.feature.stateproviders.BlockStateProvider;
 
 
 public class FlowerMapRenderer extends GuiComponent {
@@ -95,8 +94,9 @@ public class FlowerMapRenderer extends GuiComponent {
                         if (list.isEmpty()) {
                             texture.getPixels().setPixelRGBA(x, z, 0xff7f7f7f);
                         } else {
-                            BlockStateProvider flowerMap = ((SimpleBlockConfiguration)((RandomPatchConfiguration)list.get(0).config()).feature().value().feature().value().config()).toPlace();
-                            BlockState state = flowerMap.getState(minecraft.player.level.random, pos);
+                            RandomPatchConfiguration config = (RandomPatchConfiguration) list.get(0).config();
+                            SimpleBlockConfiguration flowerMap = (SimpleBlockConfiguration) config.feature().value().feature().value().config();
+                            BlockState state = flowerMap.toPlace().getState(minecraft.player.level.random, pos);
                             texture.getPixels().setPixelRGBA(x, z, colorMap.getOrDefault(state, 0xff007f00));
                         }
                     }
@@ -142,7 +142,6 @@ public class FlowerMapRenderer extends GuiComponent {
         
         // FLOWER GRADIENT TEXTURE
         RenderSystem.setShader(GameRenderer::getPositionTexShader);
-        
         RenderSystem.setShaderTexture(0, texture.getId());
         blit(poseStack, (int)width - 256 - 5, 5, 0, 0, 256, 256);
         
