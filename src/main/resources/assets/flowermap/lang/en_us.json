@@ -1,8 +1,15 @@
 {
 "text.autoconfig.flowermap.title":"Flower Map",
+"text.autoconfig.flowermap.option.enabled":"Map enabled",
 "text.autoconfig.flowermap.option.scale":"Map scale",
 "text.autoconfig.flowermap.option.legend":"Legend enabled",
 "text.autoconfig.flowermap.option.legendScale":"Legend scale",
-"category.flowermap":"Flower Map",
-"key.flowermap.toggle":"Toggle Flower Map"
+"text.autoconfig.flowermap.option.dynamic":"Map y follows player (dynamic mode)",
+"text.autoconfig.flowermap.option.fixedY":"Map y (fixed mode)",
+"key.category.flowermap":"Flower Map",
+"key.flowermap.toggle":"Toggle Flower Map",
+"key.flowermap.toggleDynamic":"Fixed y mode toggle",
+"key.flowermap.increaseY":"Fixed y mode: Increase y",
+"key.flowermap.decreaseY":"Fixed y mode: Decrease y",
+"key.flowermap.setY":"Fixed y mode: Set y to player pos"
 }

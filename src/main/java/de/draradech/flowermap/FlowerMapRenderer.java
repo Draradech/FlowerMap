@@ -10,6 +10,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Matrix4f;
 import com.mojang.math.Vector3f;
 
+import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.renderer.GameRenderer;
@@ -18,6 +19,7 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.data.BuiltinRegistries;
+import net.minecraft.network.chat.TranslatableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Blocks;
@@ -34,9 +36,8 @@ public class FlowerMapRenderer extends GuiComponent {
     AbstractTexture pointer;
     
     Map<BlockState, Integer> colorMap = new LinkedHashMap<BlockState, Integer>();
-    int rx, ry, rz;
     Thread renderThread;
-    boolean rendering;
+    boolean textureRendering;
     boolean enabled;
     
     int color(int r, int g, int b) {
@@ -58,8 +59,7 @@ public class FlowerMapRenderer extends GuiComponent {
         colorMap.put(Blocks.LILY_OF_THE_VALLEY.defaultBlockState(), color(255, 255, 255));
         colorMap.put(Blocks.BLUE_ORCHID.defaultBlockState(), color(0, 191, 255));
         renderThread = new Thread(new Runnable() { public void run() { renderTexture(); } } );
-        rendering = false;
-        enabled = false;
+        textureRendering = false;
         renderThread.start();
     }
     
@@ -67,16 +67,30 @@ public class FlowerMapRenderer extends GuiComponent {
     {
         for(;;)
         {
-            if(rendering == true)
+            if(textureRendering == true)
             {
-                BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(0, ry, 0); 
+                int px = minecraft.player.getBlockX();
+                int py = minecraft.player.getBlockY();
+                int pz = minecraft.player.getBlockZ();
+                BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(0, FlowerMapMain.config.fixedY, 0);
+                if (FlowerMapMain.config.dynamic) pos.setY(py);
                 for (int x = 0; x < 256; ++x)
                 {
                     for (int z = 0; z < 256; ++z) {
-                        pos.setX(rx + x - 128);
-                        pos.setZ(rz + z - 128);
+                        pos.setX(px + x - 128);
+                        pos.setZ(pz + z - 128);
                         Holder<Biome> biomeEntry = minecraft.player.level.getBiome(pos);
-                        Biome biome = BuiltinRegistries.BIOME.get(biomeEntry.unwrapKey().get());
+                        Biome biome;
+                        if (minecraft.isLocalServer()) {
+                            // If this is a local server (singleplayer or opened to LAN), we can get the biome directly, it will know its generation settings.
+                            biome = biomeEntry.value();
+                        }
+                        else
+                        {
+                            // If the server is remote (multiplayer client), the biomes don't know their generation settings.
+                            // As a workaround, assume biomes haven't been modified via datapack and get the biome from the builtin registry.
+                            biome = BuiltinRegistries.BIOME.get(biomeEntry.unwrapKey().get());
+                        }
                         List<ConfiguredFeature<?, ?>> list = biome.getGenerationSettings().getFlowerFeatures();
                         if (list.isEmpty()) {
                             texture.getPixels().setPixelRGBA(x, z, 0xff7f7f7f);
@@ -87,7 +101,7 @@ public class FlowerMapRenderer extends GuiComponent {
                         }
                     }
                 }
-                rendering = false;
+                textureRendering = false;
             }
             else
             {
@@ -101,42 +115,56 @@ public class FlowerMapRenderer extends GuiComponent {
     
     public void render()
     {
-        if (!enabled) return;
+        if (!FlowerMapMain.config.enabled) return;
+        
         minecraft.getProfiler().push("flowermap");
+        
+        // SETUP
         if (texture == null) {
             texture = new DynamicTexture(256, 256, false);
             pointer = minecraft.getTextureManager().getTexture(new ResourceLocation("flowermap:pointer.png"));
         }
-        
         Window window = minecraft.getWindow();
         float width = window.getWidth() / FlowerMapMain.config.scale;
         float height = window.getHeight() / FlowerMapMain.config.scale;
         Matrix4f before = RenderSystem.getProjectionMatrix();
         Matrix4f noguiscale = Matrix4f.orthographic(0.0f, width, 0.0f, height, 1000.0f, 3000.0f);
         RenderSystem.setProjectionMatrix(noguiscale);
-        
         PoseStack poseStack = new PoseStack();
         
-        if (rendering == false) {
+        // RENDER THREAD CONTROL
+        if (textureRendering == false) {
             minecraft.getProfiler().push("upload");
             texture.upload();
             minecraft.getProfiler().pop();
-            rx = minecraft.player.getBlockX();
-            ry = minecraft.player.getBlockY();
-            rz = minecraft.player.getBlockZ();
-            rendering = true;
+            textureRendering = true;
         }
         
+        // FLOWER GRADIENT TEXTURE
         RenderSystem.setShader(GameRenderer::getPositionTexShader);
         
         RenderSystem.setShaderTexture(0, texture.getId());
         blit(poseStack, (int)width - 256 - 5, 5, 0, 0, 256, 256);
         
+        // Y LEVEL AND BIOME
+        RenderSystem.disableBlend();
+        if (FlowerMapMain.config.dynamic) {
+            minecraft.font.drawShadow(poseStack, String.format("y: %d (player)", minecraft.player.getBlockY()), (int)width - 256 - 5, 256 + 5 + 5, 0xffffffff);
+        }
+        else
+        {
+            minecraft.font.drawShadow(poseStack, String.format("y: %d (fixed)", FlowerMapMain.config.fixedY), (int)width - 256 - 5, 256 + 5 + 5, 0xffffffff);
+        }
+        Holder<Biome> biomeEntry = minecraft.player.level.getBiome(minecraft.player.blockPosition());
+        TranslatableComponent biomeName = new TranslatableComponent(Util.makeDescriptionId("biome", biomeEntry.unwrapKey().get().location()));
+        int nameLength = minecraft.font.width(biomeName);
+        minecraft.font.drawShadow(poseStack, biomeName, (int)width - 5 - nameLength, 256 + 5 + 5, 0xffffffff);
+        
+        // LEGEND
         if (FlowerMapMain.config.legend) {
             minecraft.getProfiler().push("legend");
             poseStack.pushPose();
             poseStack.scale(FlowerMapMain.config.legendScale / FlowerMapMain.config.scale, FlowerMapMain.config.legendScale / FlowerMapMain.config.scale, 1.0f);
-            RenderSystem.disableBlend();
             int i = 0;
             for (Map.Entry<BlockState, Integer> e : colorMap.entrySet())
             {
@@ -151,6 +179,7 @@ public class FlowerMapRenderer extends GuiComponent {
             minecraft.getProfiler().pop();
         }
         
+        // PLAYER POSITION MARKER
         poseStack.translate((int)width - 256 - 5 + 128, 5 + 128, 0);
         poseStack.mulPose(Vector3f.ZP.rotationDegrees(minecraft.player.getYRot() + 180.0f));
         RenderSystem.setShaderTexture(0, pointer.getId());
@@ -159,9 +188,4 @@ public class FlowerMapRenderer extends GuiComponent {
         RenderSystem.setProjectionMatrix(before);
         minecraft.getProfiler().pop();
     }
-    
-    public void toggle() {
-        enabled = !enabled;
-    }
-    
 }
