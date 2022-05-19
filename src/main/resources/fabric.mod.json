@@ -33,12 +33,12 @@
 
   "depends": {
     "java": ">=17",
-    "minecraft": "1.18.x",
-    "fabricloader": ">=0.13.3",
+    "minecraft": "1.19.x",
+    "fabricloader": ">=0.14.5",
     "fabric-key-binding-api-v1": "*",
     "fabric-lifecycle-events-v1" : "*",
     "fabric-rendering-v1": "*",
-    "cloth-config": "6.x",
-    "modmenu": "3.x"
+    "cloth-config": "7.x",
+    "modmenu": "4.x"
   }
 }

@@ -19,8 +19,10 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.data.BuiltinRegistries;
-import net.minecraft.network.chat.TranslatableComponent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -30,6 +32,7 @@ import net.minecraft.world.level.levelgen.feature.configurations.SimpleBlockConf
 
 
 public class FlowerMapRenderer extends GuiComponent {
+    final RandomSource random = RandomSource.create();
     final Minecraft minecraft;
     DynamicTexture texture = null;
     AbstractTexture pointer;
@@ -96,7 +99,7 @@ public class FlowerMapRenderer extends GuiComponent {
                         } else {
                             RandomPatchConfiguration config = (RandomPatchConfiguration) list.get(0).config();
                             SimpleBlockConfiguration flowerMap = (SimpleBlockConfiguration) config.feature().value().feature().value().config();
-                            BlockState state = flowerMap.toPlace().getState(minecraft.player.level.random, pos);
+                            BlockState state = flowerMap.toPlace().getState(random, pos);
                             texture.getPixels().setPixelRGBA(x, z, colorMap.getOrDefault(state, 0xff007f00));
                         }
                     }
@@ -155,7 +158,7 @@ public class FlowerMapRenderer extends GuiComponent {
             minecraft.font.drawShadow(poseStack, String.format("y: %d (fixed)", FlowerMapMain.config.fixedY), (int)width - 256 - 5, 256 + 5 + 5, 0xffffffff);
         }
         Holder<Biome> biomeEntry = minecraft.player.level.getBiome(minecraft.player.blockPosition());
-        TranslatableComponent biomeName = new TranslatableComponent(Util.makeDescriptionId("biome", biomeEntry.unwrapKey().get().location()));
+        MutableComponent biomeName = Component.translatable(Util.makeDescriptionId("biome", biomeEntry.unwrapKey().get().location()));
         int nameLength = minecraft.font.width(biomeName);
         minecraft.font.drawShadow(poseStack, biomeName, (int)width - 5 - nameLength, 256 + 5 + 5, 0xffffffff);
         
