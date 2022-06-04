@@ -38,7 +38,6 @@
     "fabric-key-binding-api-v1": "*",
     "fabric-lifecycle-events-v1" : "*",
     "fabric-rendering-v1": "*",
-    "cloth-config": "7.x",
-    "modmenu": "4.x"
+    "cloth-config": "7.x"
   }
 }
