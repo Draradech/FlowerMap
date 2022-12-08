@@ -3,13 +3,12 @@ package de.draradech.flowermap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.joml.Matrix4f;
 
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.math.Matrix4f;
-import com.mojang.math.Vector3f;
-
+import com.mojang.math.Axis;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiComponent;
@@ -18,7 +17,10 @@ import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
-import net.minecraft.data.BuiltinRegistries;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.core.HolderLookup.RegistryLookup;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.data.registries.VanillaRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
@@ -42,6 +44,8 @@ public class FlowerMapRenderer extends GuiComponent {
     boolean textureRendering;
     boolean enabled;
     
+    RegistryLookup<Biome> vanillaBiomes = null;
+    
     int color(int r, int g, int b) {
         return 255 << 24 | b << 16 | g << 8 | r;
     }
@@ -63,6 +67,12 @@ public class FlowerMapRenderer extends GuiComponent {
         renderThread = new Thread(new Runnable() { public void run() { renderTexture(); } } );
         textureRendering = false;
         renderThread.start();
+    }
+    
+    void loadVanillaBiomes()
+    {
+        HolderLookup.Provider vanillaRegistries = VanillaRegistries.createLookup();
+        vanillaBiomes = vanillaRegistries.lookupOrThrow(Registries.BIOME);
     }
     
     void renderTexture()
@@ -91,7 +101,11 @@ public class FlowerMapRenderer extends GuiComponent {
                         {
                             // If the server is remote (multiplayer client), the biomes don't know their generation settings.
                             // As a workaround, assume biomes haven't been modified via datapack and get the biome from the builtin registry.
-                            biome = BuiltinRegistries.BIOME.get(biomeEntry.unwrapKey().get());
+                            if(vanillaBiomes == null)
+                            {
+                                loadVanillaBiomes();
+                            }
+                            biome = vanillaBiomes.get(biomeEntry.unwrapKey().get()).get().value();
                         }
                         List<ConfiguredFeature<?, ?>> list = biome.getGenerationSettings().getFlowerFeatures();
                         if (list.isEmpty()) {
@@ -131,7 +145,7 @@ public class FlowerMapRenderer extends GuiComponent {
         float width = window.getWidth() / FlowerMapMain.config.scale;
         float height = window.getHeight() / FlowerMapMain.config.scale;
         Matrix4f before = RenderSystem.getProjectionMatrix();
-        Matrix4f noguiscale = Matrix4f.orthographic(0.0f, width, 0.0f, height, 1000.0f, 3000.0f);
+        Matrix4f noguiscale = new Matrix4f().setOrtho(0.0f, width, height, 0.0f, 1000.0f, 3000.0f);
         RenderSystem.setProjectionMatrix(noguiscale);
         PoseStack poseStack = new PoseStack();
         
@@ -183,7 +197,7 @@ public class FlowerMapRenderer extends GuiComponent {
         
         // PLAYER POSITION MARKER
         poseStack.translate((int)width - 256 - 5 + 128, 5 + 128, 0);
-        poseStack.mulPose(Vector3f.ZP.rotationDegrees(minecraft.player.getYRot() + 180.0f));
+        poseStack.mulPose(Axis.ZP.rotationDegrees(minecraft.player.getYRot() + 180.0f));
         RenderSystem.setShaderTexture(0, pointer.getId());
         blit(poseStack, -8, -9, 0, 0, 16, 16, 16, 16);
         
