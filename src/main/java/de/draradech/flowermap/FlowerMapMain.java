@@ -38,13 +38,13 @@ public class FlowerMapMain implements ModInitializer{
         keyDecreaseY = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.flowermap.decreaseY", GLFW.GLFW_KEY_KP_SUBTRACT, "key.category.flowermap"));
         keySetY = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.flowermap.setY", GLFW.GLFW_KEY_KP_0, "key.category.flowermap"));
         
-        HudRenderCallback.EVENT.register((poseStack, delta) -> {
+        HudRenderCallback.EVENT.register((guiGraphics, delta) -> {
             if (keyIncreaseY.consumeClick()     && config.enabled && !config.dynamic) {config.fixedY = Mth.clamp(config.fixedY + 1, -63, 319);     configHolder.save();}
             if (keyDecreaseY.consumeClick()     && config.enabled && !config.dynamic) {config.fixedY = Mth.clamp(config.fixedY - 1, -63, 319);     configHolder.save();}
             if (keySetY.consumeClick()          && config.enabled && !config.dynamic) {config.fixedY = Minecraft.getInstance().player.getBlockY(); configHolder.save();}
             if (keyToggleDynamic.consumeClick() && config.enabled)                    {config.dynamic = !config.dynamic;                           configHolder.save();}
             if (keyToggle.consumeClick())                                             {config.enabled = !config.enabled;                           configHolder.save();}
-            renderer.render();
+            renderer.render(guiGraphics);
         });
     }
 }
