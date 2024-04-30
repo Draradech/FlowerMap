@@ -4,13 +4,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.joml.Matrix4f;
+import org.joml.Matrix4fStack;
 
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexSorting;
@@ -34,7 +34,6 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
 import net.minecraft.world.level.levelgen.feature.configurations.RandomPatchConfiguration;
 import net.minecraft.world.level.levelgen.feature.configurations.SimpleBlockConfiguration;
@@ -100,21 +99,13 @@ public class FlowerMapRenderer {
                         pos.setX(px + x - 128);
                         pos.setZ(pz + z - 128);
                         Holder<Biome> biomeEntry = minecraft.player.level().getBiome(pos);
-                        Biome biome;
-                        if (minecraft.isLocalServer()) {
-                            // If this is a local server (singleplayer or opened to LAN), we can get the biome directly, it will know its generation settings.
-                            biome = biomeEntry.value();
-                        }
-                        else
+                        // The client-side biomes don't know their generation settings.
+                        // As a workaround, assume biomes haven't been modified via datapack and get the biome from the builtin registry.
+                        if(vanillaBiomes == null)
                         {
-                            // If the server is remote (multiplayer client), the biomes don't know their generation settings.
-                            // As a workaround, assume biomes haven't been modified via datapack and get the biome from the builtin registry.
-                            if(vanillaBiomes == null)
-                            {
-                                loadVanillaBiomes();
-                            }
-                            biome = vanillaBiomes.get(biomeEntry.unwrapKey().get()).get().value();
+                            loadVanillaBiomes();
                         }
+                        Biome biome = vanillaBiomes.get(biomeEntry.unwrapKey().get()).get().value();
                         List<ConfiguredFeature<?, ?>> list = biome.getGenerationSettings().getFlowerFeatures();
                         if (list.isEmpty()) {
                             texture.getPixels().setPixelRGBA(x, z, 0xff7f7f7f);
@@ -173,10 +164,10 @@ public class FlowerMapRenderer {
         VertexSorting vsBefore = RenderSystem.getVertexSorting();
         Matrix4f noguiscale = new Matrix4f().setOrtho(0.0f, width, height, 0.0f, 1000.0f, 21000.0f);
         RenderSystem.setProjectionMatrix(noguiscale, VertexSorting.ORTHOGRAPHIC_Z);
-        PoseStack poseStack = RenderSystem.getModelViewStack();
-        poseStack.pushPose();
-        poseStack.setIdentity();
-        poseStack.translate(0.0f, 0.0f, -11000.0f);
+        Matrix4fStack matrixStack = RenderSystem.getModelViewStack();
+        matrixStack.pushMatrix();
+        matrixStack.identity();
+        matrixStack.translate(0.0f, 0.0f, -11000.0f);
         RenderSystem.applyModelViewMatrix();
 		guiGraphics.pose().pushPose();
 		guiGraphics.pose().setIdentity();
@@ -232,7 +223,7 @@ public class FlowerMapRenderer {
         guiGraphics.flush();
         guiGraphics.pose().popPose();
         RenderSystem.setProjectionMatrix(before, vsBefore);
-        poseStack.popPose();
+        matrixStack.popMatrix();
         RenderSystem.applyModelViewMatrix();
         minecraft.getProfiler().pop();
     }
