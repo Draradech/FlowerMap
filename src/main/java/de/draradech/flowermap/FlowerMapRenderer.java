@@ -131,16 +131,15 @@ public class FlowerMapRenderer {
     
     private void blit(GuiGraphics guiGraphics, int texid, int x, int y, int w, int h)
     {
-    	BufferBuilder bufferBuilder = Tesselator.getInstance().getBuilder();
     	RenderSystem.setShader(GameRenderer::getPositionTexShader);
         RenderSystem.setShaderTexture(0, texid);
         Matrix4f matrix4f3 = guiGraphics.pose().last().pose();
-        bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-        bufferBuilder.vertex(matrix4f3, x, y, 0.0f).uv(0.0f, 0.0f).endVertex();
-        bufferBuilder.vertex(matrix4f3, x, y + h, 0.0f).uv(0.0f, 1.0f).endVertex();
-        bufferBuilder.vertex(matrix4f3, x + w, y + h, 0.0f).uv(1.0f, 1.0f).endVertex();
-        bufferBuilder.vertex(matrix4f3, x + w, y, 0.0f).uv(1.0f, 0.0f).endVertex();
-        BufferUploader.drawWithShader(bufferBuilder.end());
+        BufferBuilder bufferBuilder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+        bufferBuilder.addVertex(matrix4f3, x, y, 0.0f).setUv(0.0f, 0.0f);
+        bufferBuilder.addVertex(matrix4f3, x, y + h, 0.0f).setUv(0.0f, 1.0f);
+        bufferBuilder.addVertex(matrix4f3, x + w, y + h, 0.0f).setUv(1.0f, 1.0f);
+        bufferBuilder.addVertex(matrix4f3, x + w, y, 0.0f).setUv(1.0f, 0.0f);
+        BufferUploader.drawWithShader(bufferBuilder.build());
     }
     
 	public void render(GuiGraphics guiGraphics)
@@ -155,7 +154,7 @@ public class FlowerMapRenderer {
         // SETUP
         if (texture == null) {
             texture = new DynamicTexture(256, 256, false);
-            pointer = minecraft.getTextureManager().getTexture(new ResourceLocation("flowermap:pointer.png"));
+            pointer = minecraft.getTextureManager().getTexture(ResourceLocation.fromNamespaceAndPath("flowermap", "pointer.png"));
         }
         Window window = minecraft.getWindow();
         float width = window.getWidth() / FlowerMapMain.config.scale;
