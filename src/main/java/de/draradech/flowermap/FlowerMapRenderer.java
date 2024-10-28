@@ -3,9 +3,11 @@ package de.draradech.flowermap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
 import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
 
+import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -13,24 +15,26 @@ import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import com.mojang.blaze3d.vertex.VertexSorting;
 import com.mojang.math.Axis;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.CoreShaders;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
+import net.minecraft.core.Holder.Reference;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.HolderLookup.RegistryLookup;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.data.registries.VanillaRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.RandomSource;
+import net.minecraft.util.profiling.Profiler;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Block;
@@ -53,7 +57,7 @@ public class FlowerMapRenderer {
     RegistryLookup<Biome> vanillaBiomes = null;
     
     int color(int r, int g, int b) {
-        return 255 << 24 | b << 16 | g << 8 | r;
+        return 0xff << 24 | r << 16 | g << 8 | b;
     }
     
     public FlowerMapRenderer() {
@@ -70,7 +74,7 @@ public class FlowerMapRenderer {
         colorMap.put(Blocks.CORNFLOWER, color(65, 0, 255));
         colorMap.put(Blocks.LILY_OF_THE_VALLEY, color(255, 255, 255));
         colorMap.put(Blocks.BLUE_ORCHID, color(0, 191, 255));
-        colorMap.put(Blocks.PINK_PETALS, color(255, 0, 191));
+        colorMap.put(Blocks.PINK_PETALS, color(255, 65, 191));
         renderThread = new Thread(new Runnable() { public void run() { renderTexture(); } } );
         textureRendering = false;
         renderThread.start();
@@ -93,27 +97,43 @@ public class FlowerMapRenderer {
                 int pz = minecraft.player.getBlockZ();
                 BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(0, FlowerMapMain.config.fixedY, 0);
                 if (FlowerMapMain.config.dynamic) pos.setY(py);
+
+                // The client-side biomes don't know their generation settings.
+                // As a workaround, assume biomes haven't been modified via datapack and get the biome from the builtin registry.
+                if(vanillaBiomes == null)
+                {
+                    loadVanillaBiomes();
+                }
+                
                 for (int x = 0; x < 256; ++x)
                 {
-                    for (int z = 0; z < 256; ++z) {
+                    for (int z = 0; z < 256; ++z)
+                    {
                         pos.setX(px + x - 128);
                         pos.setZ(pz + z - 128);
+                        
                         Holder<Biome> biomeEntry = minecraft.player.level().getBiome(pos);
-                        // The client-side biomes don't know their generation settings.
-                        // As a workaround, assume biomes haven't been modified via datapack and get the biome from the builtin registry.
-                        if(vanillaBiomes == null)
-                        {
-                            loadVanillaBiomes();
-                        }
-                        Biome biome = vanillaBiomes.get(biomeEntry.unwrapKey().get()).get().value();
-                        List<ConfiguredFeature<?, ?>> list = biome.getGenerationSettings().getFlowerFeatures();
-                        if (list.isEmpty()) {
-                            texture.getPixels().setPixelRGBA(x, z, 0xff7f7f7f);
+                        ResourceKey<Biome> biomeKey = biomeEntry.unwrapKey().orElse(null);
+                        if (biomeKey != null) {
+                            Reference<Biome> vanillaBiomeRef = vanillaBiomes.get(biomeKey).orElse(null);
+                            if (vanillaBiomeRef != null)
+                            {
+                                Biome vanillaBiome = vanillaBiomeRef.value();
+                                List<ConfiguredFeature<?, ?>> list = vanillaBiome.getGenerationSettings().getFlowerFeatures();
+                                if (list.isEmpty())
+                                {
+                                    texture.getPixels().setPixel(x, z, color(127, 127, 127));
+                                } else {
+                                    RandomPatchConfiguration config = (RandomPatchConfiguration) list.get(0).config();
+                                    SimpleBlockConfiguration flowerMap = (SimpleBlockConfiguration) config.feature().value().feature().value().config();
+                                    Block block = flowerMap.toPlace().getState(random, pos).getBlock();
+                                    texture.getPixels().setPixel(x, z, colorMap.getOrDefault(block, color(0, 127, 0)));
+                                }
+                            } else {
+                                texture.getPixels().setPixel(x, z, color(0, 255, 0));
+                            }
                         } else {
-                            RandomPatchConfiguration config = (RandomPatchConfiguration) list.get(0).config();
-                            SimpleBlockConfiguration flowerMap = (SimpleBlockConfiguration) config.feature().value().feature().value().config();
-                            Block block = flowerMap.toPlace().getState(random, pos).getBlock();
-                            texture.getPixels().setPixelRGBA(x, z, colorMap.getOrDefault(block, 0xff007f00));
+                            texture.getPixels().setPixel(x, z, color(0, 255, 0));
                         }
                     }
                 }
@@ -131,8 +151,9 @@ public class FlowerMapRenderer {
     
     private void blit(GuiGraphics guiGraphics, int texid, int x, int y, int w, int h)
     {
-    	RenderSystem.setShader(GameRenderer::getPositionTexShader);
-        RenderSystem.setShaderTexture(0, texid);
+    	RenderSystem.setShader(CoreShaders.POSITION_TEX);
+    	RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
+    	RenderSystem.setShaderTexture(0, texid);
         Matrix4f matrix4f3 = guiGraphics.pose().last().pose();
         BufferBuilder bufferBuilder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
         bufferBuilder.addVertex(matrix4f3, x, y, 0.0f).setUv(0.0f, 0.0f);
@@ -149,7 +170,7 @@ public class FlowerMapRenderer {
         // there should be nothing in the buffers, just to be safe, we flush before changing render config.
         guiGraphics.flush();
 
-        minecraft.getProfiler().push("flowermap");
+        Profiler.get().push("flowermap");
         
         // SETUP
         if (texture == null) {
@@ -159,23 +180,23 @@ public class FlowerMapRenderer {
         Window window = minecraft.getWindow();
         float width = window.getWidth() / FlowerMapMain.config.scale;
         float height = window.getHeight() / FlowerMapMain.config.scale;
-        Matrix4f before = RenderSystem.getProjectionMatrix();
-        VertexSorting vsBefore = RenderSystem.getVertexSorting();
+        RenderSystem.backupProjectionMatrix();
+
+        
         Matrix4f noguiscale = new Matrix4f().setOrtho(0.0f, width, height, 0.0f, 1000.0f, 21000.0f);
-        RenderSystem.setProjectionMatrix(noguiscale, VertexSorting.ORTHOGRAPHIC_Z);
+        RenderSystem.setProjectionMatrix(noguiscale, ProjectionType.ORTHOGRAPHIC);
         Matrix4fStack matrixStack = RenderSystem.getModelViewStack();
         matrixStack.pushMatrix();
         matrixStack.identity();
         matrixStack.translate(0.0f, 0.0f, -11000.0f);
-        RenderSystem.applyModelViewMatrix();
 		guiGraphics.pose().pushPose();
 		guiGraphics.pose().setIdentity();
         
         // RENDER THREAD CONTROL
         if (textureRendering == false) {
-            minecraft.getProfiler().push("upload");
+            Profiler.get().push("upload");
             texture.upload();
-            minecraft.getProfiler().pop();
+            Profiler.get().pop();
             textureRendering = true;
         }
         
@@ -197,21 +218,17 @@ public class FlowerMapRenderer {
         
         // LEGEND
         if (FlowerMapMain.config.legend) {
-            minecraft.getProfiler().push("legend");
+            Profiler.get().push("legend");
             guiGraphics.pose().pushPose();
             guiGraphics.pose().scale(FlowerMapMain.config.legendScale / FlowerMapMain.config.scale, FlowerMapMain.config.legendScale / FlowerMapMain.config.scale, 1.0f);
             int i = 0;
             for (Map.Entry<Block, Integer> e : colorMap.entrySet())
             {
-                int col = e.getValue();
-                int r = col & 0xff;
-                int g = (col >> 8) & 0xff;
-                int b = (col >> 16) & 0xff;
-                guiGraphics.fill(5, 5 + i * 12, 15, 15 + i * 12, 0xff000000 | r << 16 | g << 8 | b);
+                guiGraphics.fill(5, 5 + i * 12, 15, 15 + i * 12, e.getValue());
                 guiGraphics.drawString(minecraft.font, e.getKey().getName(), 17, 7 + i++ * 12, 0xffffffff);
             }
             guiGraphics.pose().popPose();
-            minecraft.getProfiler().pop();
+            Profiler.get().pop();
         }
         
         // PLAYER POSITION MARKER
@@ -221,9 +238,8 @@ public class FlowerMapRenderer {
         
         guiGraphics.flush();
         guiGraphics.pose().popPose();
-        RenderSystem.setProjectionMatrix(before, vsBefore);
+        RenderSystem.restoreProjectionMatrix();
         matrixStack.popMatrix();
-        RenderSystem.applyModelViewMatrix();
-        minecraft.getProfiler().pop();
+        Profiler.get().pop();
     }
 }
