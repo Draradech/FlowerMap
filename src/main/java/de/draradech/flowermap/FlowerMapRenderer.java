@@ -191,9 +191,9 @@ public class FlowerMapRenderer {
     
     private void drawTexture(GuiGraphics guiGraphics, int texid, int x, int y, int w, int h)
     {
-    	RenderSystem.setShader(CoreShaders.POSITION_TEX);
-    	RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
-    	RenderSystem.setShaderTexture(0, texid);
+        RenderSystem.setShader(CoreShaders.POSITION_TEX);
+        RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
+        RenderSystem.setShaderTexture(0, texid);
         Matrix4f matrix4f3 = guiGraphics.pose().last().pose();
         BufferBuilder bufferBuilder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
         bufferBuilder.addVertex(matrix4f3, x, y, 0.0f).setUv(0.0f, 0.0f);
@@ -209,8 +209,8 @@ public class FlowerMapRenderer {
         guiGraphics.drawString(minecraft.font, flowerName, w - 5 - 256 + 12, 256 + 5 + 5 + 12 * (i + 3), 0xffffffff);
     }
     
-	public void render(GuiGraphics guiGraphics)
-	{
+    public void render(GuiGraphics guiGraphics)
+    {
         if (!FlowerMapMain.config.enabled) return;
         
         // there should be nothing in the buffers, just to be safe, we flush before changing render config.
@@ -238,8 +238,8 @@ public class FlowerMapRenderer {
         matrixStack.pushMatrix();
         matrixStack.identity();
         matrixStack.translate(0.0f, 0.0f, -11000.0f);
-		guiGraphics.pose().pushPose();
-		guiGraphics.pose().setIdentity();
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().setIdentity();
         
         // RENDER THREAD CONTROL, TEXTURE UPLOAD
         if (textureRendering == false) {
@@ -254,11 +254,11 @@ public class FlowerMapRenderer {
         
         // Y LEVEL AND BIOME
         if (FlowerMapMain.config.dynamic) {
-        	guiGraphics.drawString(minecraft.font, String.format("Position (xzy): %d, %d, %d (player)", minecraft.player.getBlockX(), minecraft.player.getBlockZ(), minecraft.player.getBlockY()), (int)width - 256 - 5, 256 + 5 + 5 + 12, 0xffffffff);
+            guiGraphics.drawString(minecraft.font, String.format("Position (xzy): %d, %d, %d (player)", minecraft.player.getBlockX(), minecraft.player.getBlockZ(), minecraft.player.getBlockY()), (int)width - 256 - 5, 256 + 5 + 5 + 12, 0xffffffff);
         }
         else
         {
-        	guiGraphics.drawString(minecraft.font, String.format("Position (xzy): %d, %d, %d (fixed y)", minecraft.player.getBlockX(), minecraft.player.getBlockZ(), FlowerMapMain.config.fixedY), (int)width - 256 - 5, 256 + 5 + 5 + 12, 0xffffffff);
+            guiGraphics.drawString(minecraft.font, String.format("Position (xzy): %d, %d, %d (fixed y)", minecraft.player.getBlockX(), minecraft.player.getBlockZ(), FlowerMapMain.config.fixedY), (int)width - 256 - 5, 256 + 5 + 5 + 12, 0xffffffff);
         }
 
         int px = minecraft.player.getBlockX();
