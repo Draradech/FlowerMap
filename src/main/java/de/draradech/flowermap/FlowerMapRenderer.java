@@ -7,20 +7,13 @@ import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
 
 import com.mojang.blaze3d.ProjectionType;
-import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.BufferUploader;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.Tesselator;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.math.Axis;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.renderer.CoreShaders;
-import net.minecraft.client.renderer.texture.AbstractTexture;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -58,7 +51,8 @@ public class FlowerMapRenderer {
     final Minecraft minecraft;
 
     DynamicTexture texture = null;
-    AbstractTexture pointer;
+    ResourceLocation textureLocation;
+    ResourceLocation pointerLocation;
     
     Map<Block, Integer> colorMap = new LinkedHashMap<Block, Integer>();
     Map<Block, Integer> errorMap = new LinkedHashMap<Block, Integer>();
@@ -89,9 +83,10 @@ public class FlowerMapRenderer {
         colorMap.put(Blocks.BLUE_ORCHID, color(0, 191, 255));
         colorMap.put(Blocks.PINK_PETALS, color(255, 65, 191));
         colorMap.put(Blocks.CLOSED_EYEBLOSSOM, color(127, 63, 0));
+        colorMap.put(Blocks.WILDFLOWERS, color(0, 127, 0));
         
         errorMap.put(Blocks.GRAY_WOOL, color(127, 127, 127)); // no flower can grow
-        errorMap.put(Blocks.GREEN_WOOL, color(0, 127, 0)); // unknown flower
+        errorMap.put(Blocks.GREEN_WOOL, color(127, 255, 127)); // unknown flower
         errorMap.put(Blocks.YELLOW_WOOL, color(0, 255, 0)); // can't get biome
         errorMap.put(Blocks.RED_WOOL, color(255, 0, 255)); // can't get biome key
         
@@ -117,7 +112,7 @@ public class FlowerMapRenderer {
         vanillaBiomes = vanillaRegistries.lookupOrThrow(Registries.BIOME);
     }
     
-    BlockStateProvider getFlowersAt(BlockPos pos)
+    Block getRandomFlowerAt(BlockPos pos, RandomSource randomSource)
     {
         // The client-side biomes don't know their generation settings.
         // As a workaround, assume biomes haven't been modified via datapack and get the biome from the builtin registry.
@@ -137,20 +132,112 @@ public class FlowerMapRenderer {
                 if (list.isEmpty())
                 {
                     // no flowers can grow here
-                    return BlockStateProvider.simple(Blocks.GRAY_WOOL);
+                    return Blocks.GRAY_WOOL;
                 } else {
-                    // get a random flower from the list of possible flowers at this position
-                    RandomPatchConfiguration config = (RandomPatchConfiguration) list.get(0).config();
+					// get a random flower from the list of possible flowers at this position
+					int k = randomSource.nextInt(list.size());
+                    RandomPatchConfiguration config = (RandomPatchConfiguration) list.get(k).config();
                     SimpleBlockConfiguration flowerMap = (SimpleBlockConfiguration) config.feature().value().feature().value().config();
-                    return flowerMap.toPlace();
+                    return flowerMap.toPlace().getState(rand_render, pos).getBlock();
                 }
             } else {
                 // couldn't get vanilla biome
-                return BlockStateProvider.simple(Blocks.YELLOW_WOOL);
+                return Blocks.YELLOW_WOOL;
             }
         } else {
             // couldn't get biome key
-            return BlockStateProvider.simple(Blocks.RED_WOOL);
+            return Blocks.RED_WOOL;
+        }
+    }
+    
+    public void renderPossibleFlowerName(GuiGraphics guiGraphics, Block block, int w, int i)
+    {
+        Component flowerName = getFlowerName(block);
+        guiGraphics.drawString(minecraft.font, flowerName, w - 5 - 256 + 12, 256 + 5 + 5 + 12 * (i + 3), 0xffffffff);
+    }
+    
+    public void renderPossibleFlowerNamesAt(BlockPos pos, RandomSource randomSource, int w, GuiGraphics gui)
+    {
+        // The client-side biomes don't know their generation settings.
+        // As a workaround, assume biomes haven't been modified via datapack and get the biome from the builtin registry.
+        if(vanillaBiomes == null)
+        {
+            loadVanillaBiomes();
+        }
+        
+        Holder<Biome> biomeEntry = minecraft.player.level().getBiome(pos);
+        ResourceKey<Biome> biomeKey = biomeEntry.unwrapKey().orElse(null);
+		int k = 0;
+        if (biomeKey != null) {
+            Reference<Biome> vanillaBiomeRef = vanillaBiomes.get(biomeKey).orElse(null);
+            if (vanillaBiomeRef != null)
+            {
+                Biome vanillaBiome = vanillaBiomeRef.value();
+                List<ConfiguredFeature<?, ?>> list = vanillaBiome.getGenerationSettings().getFlowerFeatures();
+                if (list.isEmpty())
+                {
+                    // no flowers can grow here
+                	renderPossibleFlowerName(gui, Blocks.GRAY_WOOL, w, k++);
+                } else {
+					// get a random flower from the list of possible flowers at this position
+					for(ConfiguredFeature<?, ?> feature : list)
+					{
+	                    RandomPatchConfiguration config = (RandomPatchConfiguration) feature.config();
+	                    SimpleBlockConfiguration flowerMap = (SimpleBlockConfiguration) config.feature().value().feature().value().config();
+	                    BlockStateProvider bsp = flowerMap.toPlace();
+	                    if (  (bsp instanceof NoiseProvider)
+	                       || (bsp instanceof SimpleStateProvider)
+	                       )
+	                    {
+	                        // these have no randomness, so we can just query them directly
+	                        renderPossibleFlowerName(gui, bsp.getState(rand_text, pos).getBlock(), w, k++);
+	                    }
+	                    else if (bsp instanceof WeightedStateProvider)
+	                    {
+	                    	Block b = bsp.getState(rand_text, pos).getBlock();
+	                    	// birch forest
+	                    	if (b == Blocks.WILDFLOWERS)
+	                    	{
+	                    		renderPossibleFlowerName(gui, Blocks.WILDFLOWERS, w, k++);
+	                    	}
+	                        // cherry
+	                    	else if (b == Blocks.PINK_PETALS)
+	                        {
+	                            renderPossibleFlowerName(gui, Blocks.PINK_PETALS, w, k++);
+	                        }
+	                    	// default
+	                        else
+	                        {
+	                            renderPossibleFlowerName(gui, Blocks.POPPY, w, k++);
+	                            renderPossibleFlowerName(gui, Blocks.DANDELION, w, k++);
+	                        }
+	                    }
+	                    else if (bsp instanceof NoiseThresholdProvider)
+	                    {
+	                        // plains
+	                        double t = noise.getValue((double)pos.getX() * 0.005F, (double)pos.getY() * 0.005F, (double)pos.getZ() * 0.005F);
+	                        if (t < (double)-0.8F) {
+	                            renderPossibleFlowerName(gui, Blocks.ORANGE_TULIP, w, k++);
+	                            renderPossibleFlowerName(gui, Blocks.RED_TULIP, w, k++);
+	                            renderPossibleFlowerName(gui, Blocks.PINK_TULIP, w, k++);
+	                            renderPossibleFlowerName(gui, Blocks.WHITE_TULIP, w, k++);
+	                        } else {
+	                            renderPossibleFlowerName(gui, Blocks.DANDELION, w, k++);
+	                            renderPossibleFlowerName(gui, Blocks.POPPY, w, k++);
+	                            renderPossibleFlowerName(gui, Blocks.AZURE_BLUET, w, k++);
+	                            renderPossibleFlowerName(gui, Blocks.OXEYE_DAISY, w, k++);
+	                            renderPossibleFlowerName(gui, Blocks.CORNFLOWER, w, k++);
+	                        }
+	                    }
+					}
+                }
+            } else {
+                // couldn't get vanilla biome
+                renderPossibleFlowerName(gui, Blocks.YELLOW_WOOL, w, k++);
+            }
+        } else {
+            // couldn't get biome key
+            renderPossibleFlowerName(gui, Blocks.RED_WOOL, w, k++);
         }
     }
     
@@ -172,12 +259,15 @@ public class FlowerMapRenderer {
                     {
                         pos.setX(px + x - 128);
                         pos.setZ(pz + z - 128);
-                        BlockStateProvider bsp = getFlowersAt(pos);
-                        Block block = bsp.getState(rand_render, pos).getBlock();
+                        Block block = getRandomFlowerAt(pos, rand_render);
                         texture.getPixels().setPixel(x, z, colorMap.getOrDefault(block, errorMap.getOrDefault(block, errorMap.get(Blocks.GREEN_WOOL))));
                     }
                 }
                 textureRendering = false;
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                }
             }
             else
             {
@@ -187,26 +277,6 @@ public class FlowerMapRenderer {
                 }
             }
         }
-    }
-    
-    private void drawTexture(GuiGraphics guiGraphics, int texid, int x, int y, int w, int h)
-    {
-        RenderSystem.setShader(CoreShaders.POSITION_TEX);
-        RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
-        RenderSystem.setShaderTexture(0, texid);
-        Matrix4f matrix4f3 = guiGraphics.pose().last().pose();
-        BufferBuilder bufferBuilder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-        bufferBuilder.addVertex(matrix4f3, x, y, 0.0f).setUv(0.0f, 0.0f);
-        bufferBuilder.addVertex(matrix4f3, x, y + h, 0.0f).setUv(0.0f, 1.0f);
-        bufferBuilder.addVertex(matrix4f3, x + w, y + h, 0.0f).setUv(1.0f, 1.0f);
-        bufferBuilder.addVertex(matrix4f3, x + w, y, 0.0f).setUv(1.0f, 0.0f);
-        BufferUploader.drawWithShader(bufferBuilder.build());
-    }
-    
-    public void renderPossibleFlowerName(GuiGraphics guiGraphics, Block block, int w, int i)
-    {
-        Component flowerName = getFlowerName(block);
-        guiGraphics.drawString(minecraft.font, flowerName, w - 5 - 256 + 12, 256 + 5 + 5 + 12 * (i + 3), 0xffffffff);
     }
     
     public void render(GuiGraphics guiGraphics)
@@ -220,12 +290,11 @@ public class FlowerMapRenderer {
         
         // SETUP
         if (texture == null) {
-            texture = new DynamicTexture(256, 256, false);
-            GlStateManager._bindTexture(texture.getId());
-            GlStateManager._texParameter(3553, 10241, 9728); // GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST
-            GlStateManager._texParameter(3553, 10240, 9728); // GL_TEXTURE_2D, GL_TEXTURE_MAX_FILTER, GL_NEAREST
-            GlStateManager._bindTexture(0);
-            pointer = minecraft.getTextureManager().getTexture(ResourceLocation.fromNamespaceAndPath("flowermap", "pointer.png"));
+            texture = new DynamicTexture((String)null, 256, 256, false);
+            texture.setFilter(false, false);
+            pointerLocation = ResourceLocation.fromNamespaceAndPath("flowermap", "pointer.png");
+            textureLocation = ResourceLocation.fromNamespaceAndPath("flowermap", "dynamic_map");
+            minecraft.getTextureManager().register(textureLocation, texture);
         }
         Window window = minecraft.getWindow();
         float width = window.getWidth() / FlowerMapMain.config.scale;
@@ -250,7 +319,7 @@ public class FlowerMapRenderer {
         }
         
         // FLOWER GRADIENT TEXTURE
-        drawTexture(guiGraphics, texture.getId(), (int)width - 256 - 5, 5, 256, 256);
+        guiGraphics.blit(RenderType::guiTextured, textureLocation, (int)width - 256 - 5, 5, 0.0F, 0.0F, 256, 256, 256, 256);
         
         // Y LEVEL AND BIOME
         if (FlowerMapMain.config.dynamic) {
@@ -261,11 +330,8 @@ public class FlowerMapRenderer {
             guiGraphics.drawString(minecraft.font, String.format("Position (xzy): %d, %d, %d (fixed y)", minecraft.player.getBlockX(), minecraft.player.getBlockZ(), FlowerMapMain.config.fixedY), (int)width - 256 - 5, 256 + 5 + 5 + 12, 0xffffffff);
         }
 
-        int px = minecraft.player.getBlockX();
-        int py = minecraft.player.getBlockY();
-        int pz = minecraft.player.getBlockZ();
-        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(px, FlowerMapMain.config.fixedY, pz);
-        if (FlowerMapMain.config.dynamic) pos.setY(py);
+        BlockPos.MutableBlockPos pos = minecraft.player.blockPosition().mutable();
+        if (!FlowerMapMain.config.dynamic) pos.setY(FlowerMapMain.config.fixedY);
 
         Holder<Biome> biomeEntry = minecraft.player.level().getBiome(pos);
         MutableComponent biomeName = Component.translatable(Util.makeDescriptionId("biome", biomeEntry.unwrapKey().get().location()));
@@ -274,44 +340,8 @@ public class FlowerMapRenderer {
         // POSSIBLE FLOWERS
         Component desc = Component.literal("Possible flowers at this location:");
         guiGraphics.drawString(minecraft.font, desc, (int)width - 256 - 5, 256 + 5 + 5 + 24, 0xffffffff);
-        BlockStateProvider bsp = getFlowersAt(pos);
-        if (  (bsp instanceof NoiseProvider)
-           || (bsp instanceof SimpleStateProvider)
-           )
-        {
-            // these have no randomness, so we can just query them directly
-            renderPossibleFlowerName(guiGraphics, bsp.getState(rand_text, pos).getBlock(), (int)width, 0);
-        }
-        else if (bsp instanceof WeightedStateProvider)
-        {
-            // cherry or default
-            if (bsp.getState(rand_text, pos).getBlock() == Blocks.PINK_PETALS)
-            {
-                renderPossibleFlowerName(guiGraphics, Blocks.PINK_PETALS, (int)width, 0);
-            }
-            else
-            {
-                renderPossibleFlowerName(guiGraphics, Blocks.POPPY, (int)width, 0);
-                renderPossibleFlowerName(guiGraphics, Blocks.DANDELION, (int)width, 1);
-            }
-        }
-        else if (bsp instanceof NoiseThresholdProvider)
-        {
-            // plains
-            double t = noise.getValue((double)pos.getX() * 0.005F, (double)pos.getY() * 0.005F, (double)pos.getZ() * 0.005F);
-            if (t < (double)-0.8F) {
-                renderPossibleFlowerName(guiGraphics, Blocks.ORANGE_TULIP, (int)width, 0);
-                renderPossibleFlowerName(guiGraphics, Blocks.RED_TULIP, (int)width, 1);
-                renderPossibleFlowerName(guiGraphics, Blocks.PINK_TULIP, (int)width, 2);
-                renderPossibleFlowerName(guiGraphics, Blocks.WHITE_TULIP, (int)width, 3);
-            } else {
-                renderPossibleFlowerName(guiGraphics, Blocks.DANDELION, (int)width, 0);
-                renderPossibleFlowerName(guiGraphics, Blocks.POPPY, (int)width, 1);
-                renderPossibleFlowerName(guiGraphics, Blocks.AZURE_BLUET, (int)width, 2);
-                renderPossibleFlowerName(guiGraphics, Blocks.OXEYE_DAISY, (int)width, 3);
-                renderPossibleFlowerName(guiGraphics, Blocks.CORNFLOWER, (int)width, 4);
-            }
-        }
+        
+        renderPossibleFlowerNamesAt(pos, rand_text, (int)width, guiGraphics);
         
         // LEGEND
         if (FlowerMapMain.config.legend) {
@@ -331,7 +361,7 @@ public class FlowerMapRenderer {
         // PLAYER POSITION MARKER
         guiGraphics.pose().translate((int)width - 256 - 5 + 128, 5 + 128, 0);
         guiGraphics.pose().mulPose(Axis.ZP.rotationDegrees(minecraft.player.getYRot() + 180.0f));
-        drawTexture(guiGraphics, pointer.getId(), -8, -9, 16, 16);
+        guiGraphics.blit(RenderType::guiTextured, pointerLocation, -8, -9, 0.0F, 0.0F, 16, 16, 16, 16);
         
         guiGraphics.flush();
         guiGraphics.pose().popPose();
