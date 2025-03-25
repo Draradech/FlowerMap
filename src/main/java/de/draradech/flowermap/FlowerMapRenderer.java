@@ -45,7 +45,8 @@ import net.minecraft.world.level.levelgen.synth.NormalNoise;
 import net.minecraft.world.level.levelgen.synth.NormalNoise.NoiseParameters;
 
 
-public class FlowerMapRenderer {
+public class FlowerMapRenderer
+{
     final RandomSource rand_render = RandomSource.create();
     final RandomSource rand_text = RandomSource.create();
     final Minecraft minecraft;
@@ -58,16 +59,17 @@ public class FlowerMapRenderer {
     Map<Block, Integer> errorMap = new LinkedHashMap<Block, Integer>();
     Thread renderThread;
     boolean textureRendering;
-    boolean enabled;
     
     RegistryLookup<Biome> vanillaBiomes = null;
     NormalNoise noise;
     
-    int color(int r, int g, int b) {
+    int color(int r, int g, int b)
+    {
         return 0xff << 24 | r << 16 | g << 8 | b;
     }
     
-    public FlowerMapRenderer() {
+    public FlowerMapRenderer()
+    {
         minecraft = Minecraft.getInstance();
         colorMap.put(Blocks.DANDELION, color(255, 255, 0));
         colorMap.put(Blocks.POPPY, color(255, 0, 0));
@@ -123,9 +125,20 @@ public class FlowerMapRenderer {
         
         Holder<Biome> biomeEntry = minecraft.player.level().getBiome(pos);
         ResourceKey<Biome> biomeKey = biomeEntry.unwrapKey().orElse(null);
-        if (biomeKey != null) {
+        if (biomeKey == null)
+        {
+            // couldn't get biome key
+            return Blocks.RED_WOOL;
+        }
+        else
+        {
             Reference<Biome> vanillaBiomeRef = vanillaBiomes.get(biomeKey).orElse(null);
-            if (vanillaBiomeRef != null)
+            if (vanillaBiomeRef == null)
+            {
+                // couldn't get vanilla biome
+                return Blocks.YELLOW_WOOL;
+            }
+            else
             {
                 Biome vanillaBiome = vanillaBiomeRef.value();
                 List<ConfiguredFeature<?, ?>> list = vanillaBiome.getGenerationSettings().getFlowerFeatures();
@@ -133,20 +146,16 @@ public class FlowerMapRenderer {
                 {
                     // no flowers can grow here
                     return Blocks.GRAY_WOOL;
-                } else {
-					// get a random flower from the list of possible flowers at this position
-					int k = randomSource.nextInt(list.size());
+                }
+                else
+                {
+                    // get a random flower from a random state provider at this position
+                    int k = randomSource.nextInt(list.size());
                     RandomPatchConfiguration config = (RandomPatchConfiguration) list.get(k).config();
                     SimpleBlockConfiguration flowerMap = (SimpleBlockConfiguration) config.feature().value().feature().value().config();
                     return flowerMap.toPlace().getState(rand_render, pos).getBlock();
                 }
-            } else {
-                // couldn't get vanilla biome
-                return Blocks.YELLOW_WOOL;
             }
-        } else {
-            // couldn't get biome key
-            return Blocks.RED_WOOL;
         }
     }
     
@@ -165,79 +174,89 @@ public class FlowerMapRenderer {
             loadVanillaBiomes();
         }
         
+        int k = 0;
         Holder<Biome> biomeEntry = minecraft.player.level().getBiome(pos);
         ResourceKey<Biome> biomeKey = biomeEntry.unwrapKey().orElse(null);
-		int k = 0;
-        if (biomeKey != null) {
+        if (biomeKey == null)
+        {
+            // couldn't get biome key
+            renderPossibleFlowerName(gui, Blocks.RED_WOOL, w, k++);
+        }
+        else
+        {
             Reference<Biome> vanillaBiomeRef = vanillaBiomes.get(biomeKey).orElse(null);
-            if (vanillaBiomeRef != null)
+            if (vanillaBiomeRef == null)
             {
-                Biome vanillaBiome = vanillaBiomeRef.value();
-                List<ConfiguredFeature<?, ?>> list = vanillaBiome.getGenerationSettings().getFlowerFeatures();
-                if (list.isEmpty())
-                {
-                    // no flowers can grow here
-                	renderPossibleFlowerName(gui, Blocks.GRAY_WOOL, w, k++);
-                } else {
-					// get a random flower from the list of possible flowers at this position
-					for(ConfiguredFeature<?, ?> feature : list)
-					{
-	                    RandomPatchConfiguration config = (RandomPatchConfiguration) feature.config();
-	                    SimpleBlockConfiguration flowerMap = (SimpleBlockConfiguration) config.feature().value().feature().value().config();
-	                    BlockStateProvider bsp = flowerMap.toPlace();
-	                    if (  (bsp instanceof NoiseProvider)
-	                       || (bsp instanceof SimpleStateProvider)
-	                       )
-	                    {
-	                        // these have no randomness, so we can just query them directly
-	                        renderPossibleFlowerName(gui, bsp.getState(rand_text, pos).getBlock(), w, k++);
-	                    }
-	                    else if (bsp instanceof WeightedStateProvider)
-	                    {
-	                    	Block b = bsp.getState(rand_text, pos).getBlock();
-	                    	// birch forest
-	                    	if (b == Blocks.WILDFLOWERS)
-	                    	{
-	                    		renderPossibleFlowerName(gui, Blocks.WILDFLOWERS, w, k++);
-	                    	}
-	                        // cherry
-	                    	else if (b == Blocks.PINK_PETALS)
-	                        {
-	                            renderPossibleFlowerName(gui, Blocks.PINK_PETALS, w, k++);
-	                        }
-	                    	// default
-	                        else
-	                        {
-	                            renderPossibleFlowerName(gui, Blocks.POPPY, w, k++);
-	                            renderPossibleFlowerName(gui, Blocks.DANDELION, w, k++);
-	                        }
-	                    }
-	                    else if (bsp instanceof NoiseThresholdProvider)
-	                    {
-	                        // plains
-	                        double t = noise.getValue((double)pos.getX() * 0.005F, (double)pos.getY() * 0.005F, (double)pos.getZ() * 0.005F);
-	                        if (t < (double)-0.8F) {
-	                            renderPossibleFlowerName(gui, Blocks.ORANGE_TULIP, w, k++);
-	                            renderPossibleFlowerName(gui, Blocks.RED_TULIP, w, k++);
-	                            renderPossibleFlowerName(gui, Blocks.PINK_TULIP, w, k++);
-	                            renderPossibleFlowerName(gui, Blocks.WHITE_TULIP, w, k++);
-	                        } else {
-	                            renderPossibleFlowerName(gui, Blocks.DANDELION, w, k++);
-	                            renderPossibleFlowerName(gui, Blocks.POPPY, w, k++);
-	                            renderPossibleFlowerName(gui, Blocks.AZURE_BLUET, w, k++);
-	                            renderPossibleFlowerName(gui, Blocks.OXEYE_DAISY, w, k++);
-	                            renderPossibleFlowerName(gui, Blocks.CORNFLOWER, w, k++);
-	                        }
-	                    }
-					}
-                }
-            } else {
                 // couldn't get vanilla biome
                 renderPossibleFlowerName(gui, Blocks.YELLOW_WOOL, w, k++);
             }
-        } else {
-            // couldn't get biome key
-            renderPossibleFlowerName(gui, Blocks.RED_WOOL, w, k++);
+            else
+            {
+                Biome vanillaBiome = vanillaBiomeRef.value();
+                List<ConfiguredFeature<?, ?>> list = vanillaBiome.getGenerationSettings().getFlowerFeatures();
+                if (list.isEmpty()) {
+                    // no flowers can grow here
+                    renderPossibleFlowerName(gui, Blocks.GRAY_WOOL, w, k++);
+                }
+                else
+                {
+                    // go through the list of state providers, with custom handling by provider type
+                    for(ConfiguredFeature<?, ?> feature : list)
+                    {
+                        RandomPatchConfiguration config = (RandomPatchConfiguration) feature.config();
+                        SimpleBlockConfiguration flowerMap = (SimpleBlockConfiguration) config.feature().value().feature().value().config();
+                        BlockStateProvider bsp = flowerMap.toPlace();
+                        if (  (bsp instanceof NoiseProvider)
+                           || (bsp instanceof SimpleStateProvider)
+                           )
+                        {
+                            // these have no randomness, so we can just query them directly
+                            renderPossibleFlowerName(gui, bsp.getState(rand_text, pos).getBlock(), w, k++);
+                        }
+                        else if (bsp instanceof WeightedStateProvider)
+                        {
+                            // this can be default, cherry or wild flower overlay
+                            Block b = bsp.getState(rand_text, pos).getBlock();
+                            if (b == Blocks.WILDFLOWERS)
+                            {
+                                // wild flower overlay (only wildflowers)
+                                renderPossibleFlowerName(gui, Blocks.WILDFLOWERS, w, k++);
+                            }
+                            else if (b == Blocks.PINK_PETALS)
+                            {
+                                // cherry blossom (only pink petals)
+                                renderPossibleFlowerName(gui, Blocks.PINK_PETALS, w, k++);
+                            }
+                            else
+                            {
+                                // assume default (poppies and dandelions)
+                                renderPossibleFlowerName(gui, Blocks.POPPY, w, k++);
+                                renderPossibleFlowerName(gui, Blocks.DANDELION, w, k++);
+                            }
+                        }
+                        else if (bsp instanceof NoiseThresholdProvider)
+                        {
+                            // plains and dripstone caves have 2 different distributions depending on noise value
+                            double t = noise.getValue((double)pos.getX() * 0.005F, (double)pos.getY() * 0.005F, (double)pos.getZ() * 0.005F);
+                            if (t < (double)-0.8F)
+                            {
+                                renderPossibleFlowerName(gui, Blocks.ORANGE_TULIP, w, k++);
+                                renderPossibleFlowerName(gui, Blocks.RED_TULIP, w, k++);
+                                renderPossibleFlowerName(gui, Blocks.PINK_TULIP, w, k++);
+                                renderPossibleFlowerName(gui, Blocks.WHITE_TULIP, w, k++);
+                            }
+                            else
+                            {
+                                renderPossibleFlowerName(gui, Blocks.DANDELION, w, k++);
+                                renderPossibleFlowerName(gui, Blocks.POPPY, w, k++);
+                                renderPossibleFlowerName(gui, Blocks.AZURE_BLUET, w, k++);
+                                renderPossibleFlowerName(gui, Blocks.OXEYE_DAISY, w, k++);
+                                renderPossibleFlowerName(gui, Blocks.CORNFLOWER, w, k++);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     
@@ -264,17 +283,11 @@ public class FlowerMapRenderer {
                     }
                 }
                 textureRendering = false;
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                }
+                try { Thread.sleep(50); } catch (InterruptedException e) {}
             }
             else
             {
-                try {
-                    Thread.sleep(1);
-                } catch (InterruptedException e) {
-                }
+                try { Thread.sleep(1); } catch (InterruptedException e) {}
             }
         }
     }
@@ -289,7 +302,8 @@ public class FlowerMapRenderer {
         Profiler.get().push("flowermap");
         
         // SETUP
-        if (texture == null) {
+        if (texture == null)
+        {
             texture = new DynamicTexture((String)null, 256, 256, false);
             texture.setFilter(false, false);
             pointerLocation = ResourceLocation.fromNamespaceAndPath("flowermap", "pointer.png");
@@ -311,7 +325,8 @@ public class FlowerMapRenderer {
         guiGraphics.pose().setIdentity();
         
         // RENDER THREAD CONTROL, TEXTURE UPLOAD
-        if (textureRendering == false) {
+        if (textureRendering == false)
+        {
             Profiler.get().push("upload");
             texture.upload();
             Profiler.get().pop();
@@ -322,7 +337,8 @@ public class FlowerMapRenderer {
         guiGraphics.blit(RenderType::guiTextured, textureLocation, (int)width - 256 - 5, 5, 0.0F, 0.0F, 256, 256, 256, 256);
         
         // Y LEVEL AND BIOME
-        if (FlowerMapMain.config.dynamic) {
+        if (FlowerMapMain.config.dynamic)
+        {
             guiGraphics.drawString(minecraft.font, String.format("Position (xzy): %d, %d, %d (player)", minecraft.player.getBlockX(), minecraft.player.getBlockZ(), minecraft.player.getBlockY()), (int)width - 256 - 5, 256 + 5 + 5 + 12, 0xffffffff);
         }
         else
@@ -344,7 +360,8 @@ public class FlowerMapRenderer {
         renderPossibleFlowerNamesAt(pos, rand_text, (int)width, guiGraphics);
         
         // LEGEND
-        if (FlowerMapMain.config.legend) {
+        if (FlowerMapMain.config.legend)
+        {
             Profiler.get().push("legend");
             guiGraphics.pose().pushPose();
             guiGraphics.pose().scale(FlowerMapMain.config.legendScale / FlowerMapMain.config.scale, FlowerMapMain.config.legendScale / FlowerMapMain.config.scale, 1.0f);
