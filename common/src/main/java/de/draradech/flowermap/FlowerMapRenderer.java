@@ -84,7 +84,6 @@ public class FlowerMapRenderer
         colorMap.put(Blocks.LILY_OF_THE_VALLEY, color(255, 255, 255));
         colorMap.put(Blocks.BLUE_ORCHID, color(0, 191, 255));
         colorMap.put(Blocks.PINK_PETALS, color(255, 65, 191));
-        colorMap.put(Blocks.CLOSED_EYEBLOSSOM, color(127, 63, 0));
 
         errorMap.put(Blocks.GRAY_WOOL, color(127, 127, 127)); // no flower can grow
         errorMap.put(Blocks.GREEN_WOOL, color(127, 255, 127)); // unknown flower
