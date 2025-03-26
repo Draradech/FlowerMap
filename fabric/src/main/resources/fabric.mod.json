@@ -1,0 +1,31 @@
+{
+    "schemaVersion": 1,
+    "id": "${mod_id}",
+    "version": "${version}",
+    "name": "Flower Map",
+    "description": "Renders the flower gradient, minimap-style.",
+    "authors": [
+        "Draradech"
+    ],
+    "contact": {
+        "homepage": "https://github.com/Draradech/FlowerMap",
+        "issues":  "https://github.com/Draradech/FlowerMap/issues"
+    },
+    "license": "MIT",
+    "icon": "assets/${mod_id}/icon.png",
+    "environment": "client",
+    "entrypoints": {
+        "main": [
+            "de.draradech.flowermap.FlowerMapFabric"
+        ],
+        "modmenu": [
+            "de.draradech.flowermap.FlowerMapMenuIntegration"
+        ]
+    },
+    "depends": {
+        "minecraft": ">=${minecraft_version}",
+        "fabric-key-binding-api-v1": "*",
+        "fabric-rendering-v1": "*",
+        "cloth-config": "*"
+  }
+}

@@ -1,0 +1,27 @@
+modLoader = "javafml"
+loaderVersion = "[1,)"
+license = "MIT"
+issueTrackerURL="https://github.com/Draradech/FlowerMap/issues"
+
+[[mods]]
+modId = "${mod_id}"
+version = "${version}"
+displayName = "Flower Map"
+displayURL="https://github.com/Draradech/FlowerMap"
+logoFile="assets/${mod_id}/icon.png"
+authors = "Draradech"
+description = "Renders the flower gradient, minimap-style."
+
+[[dependencies.${mod_id}]]
+modId = "minecraft"
+type="required"
+versionRange = "[${minecraft_version},)"
+ordering = "NONE"
+side = "CLIENT"
+
+[[dependencies.${mod_id}]]
+modId = "cloth_config"
+type="required"
+versionRange = "[1,)"
+ordering = "NONE"
+side = "CLIENT"
