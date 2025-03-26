@@ -85,8 +85,7 @@ public class FlowerMapRenderer
         colorMap.put(Blocks.BLUE_ORCHID, color(0, 191, 255));
         colorMap.put(Blocks.PINK_PETALS, color(255, 65, 191));
         colorMap.put(Blocks.CLOSED_EYEBLOSSOM, color(127, 63, 0));
-        colorMap.put(Blocks.WILDFLOWERS, color(0, 127, 0));
-        
+
         errorMap.put(Blocks.GRAY_WOOL, color(127, 127, 127)); // no flower can grow
         errorMap.put(Blocks.GREEN_WOOL, color(127, 255, 127)); // unknown flower
         errorMap.put(Blocks.YELLOW_WOOL, color(0, 255, 0)); // can't get biome
@@ -215,14 +214,9 @@ public class FlowerMapRenderer
                         }
                         else if (bsp instanceof WeightedStateProvider)
                         {
-                            // this can be default, cherry or wild flower overlay
+                            // this can be default or cherry
                             Block b = bsp.getState(rand_text, pos).getBlock();
-                            if (b == Blocks.WILDFLOWERS)
-                            {
-                                // wild flower overlay (only wildflowers)
-                                renderPossibleFlowerName(gui, Blocks.WILDFLOWERS, w, k++);
-                            }
-                            else if (b == Blocks.PINK_PETALS)
+                            if (b == Blocks.PINK_PETALS)
                             {
                                 // cherry blossom (only pink petals)
                                 renderPossibleFlowerName(gui, Blocks.PINK_PETALS, w, k++);
@@ -304,7 +298,7 @@ public class FlowerMapRenderer
         // SETUP
         if (texture == null)
         {
-            texture = new DynamicTexture((String)null, 256, 256, false);
+            texture = new DynamicTexture(256, 256, false);
             texture.setFilter(false, false);
             pointerLocation = ResourceLocation.fromNamespaceAndPath("flowermap", "pointer.png");
             textureLocation = ResourceLocation.fromNamespaceAndPath("flowermap", "dynamic_map");
