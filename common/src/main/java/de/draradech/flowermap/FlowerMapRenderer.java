@@ -3,17 +3,17 @@ package de.draradech.flowermap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.mojang.blaze3d.vertex.VertexSorting;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
 
-import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.math.Axis;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -27,7 +27,6 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.RandomSource;
-import net.minecraft.util.profiling.Profiler;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Block;
@@ -62,12 +61,12 @@ public class FlowerMapRenderer
     
     RegistryLookup<Biome> vanillaBiomes = null;
     NormalNoise noise;
-    
+
     int color(int r, int g, int b)
     {
         return 0xff << 24 | r << 16 | g << 8 | b;
     }
-    
+
     public FlowerMapRenderer()
     {
         minecraft = Minecraft.getInstance();
@@ -272,7 +271,9 @@ public class FlowerMapRenderer
                         pos.setX(px + x - 128);
                         pos.setZ(pz + z - 128);
                         Block block = getRandomFlowerAt(pos, rand_render);
-                        texture.getPixels().setPixel(x, z, colorMap.getOrDefault(block, errorMap.getOrDefault(block, errorMap.get(Blocks.GREEN_WOOL))));
+                        int col = colorMap.getOrDefault(block, errorMap.getOrDefault(block, errorMap.get(Blocks.GREEN_WOOL)));
+                        col = (0xff << 24) | ((col & (0xff << 16)) >> 16) | (col & (0xff << 8)) | ((col & 0xff) << 16);
+                        texture.getPixels().setPixelRGBA(x, z, col);
                     }
                 }
                 textureRendering = false;
@@ -292,7 +293,7 @@ public class FlowerMapRenderer
         // there should be nothing in the buffers, just to be safe, we flush before changing render config.
         guiGraphics.flush();
 
-        Profiler.get().push("flowermap");
+        minecraft.getProfiler().push("flowermap");
         
         // SETUP
         if (texture == null)
@@ -309,7 +310,7 @@ public class FlowerMapRenderer
         RenderSystem.backupProjectionMatrix();
         
         Matrix4f noguiscale = new Matrix4f().setOrtho(0.0f, width, height, 0.0f, 1000.0f, 21000.0f);
-        RenderSystem.setProjectionMatrix(noguiscale, ProjectionType.ORTHOGRAPHIC);
+        RenderSystem.setProjectionMatrix(noguiscale, VertexSorting.ORTHOGRAPHIC_Z);
         Matrix4fStack matrixStack = RenderSystem.getModelViewStack();
         matrixStack.pushMatrix();
         matrixStack.identity();
@@ -320,14 +321,14 @@ public class FlowerMapRenderer
         // RENDER THREAD CONTROL, TEXTURE UPLOAD
         if (textureRendering == false)
         {
-            Profiler.get().push("upload");
+            minecraft.getProfiler().push("upload");
             texture.upload();
-            Profiler.get().pop();
+            minecraft.getProfiler().pop();
             textureRendering = true;
         }
         
         // FLOWER GRADIENT TEXTURE
-        guiGraphics.blit(RenderType::guiTextured, textureLocation, (int)width - 256 - 5, 5, 0.0F, 0.0F, 256, 256, 256, 256);
+        guiGraphics.blit(textureLocation, (int)width - 256 - 5, 5, 0.0F, 0.0F, 256, 256, 256, 256);
         
         // Y LEVEL AND BIOME
         if (FlowerMapMain.config.dynamic)
@@ -355,7 +356,7 @@ public class FlowerMapRenderer
         // LEGEND
         if (FlowerMapMain.config.legend)
         {
-            Profiler.get().push("legend");
+            minecraft.getProfiler().push("legend");
             guiGraphics.pose().pushPose();
             guiGraphics.pose().scale(FlowerMapMain.config.legendScale / FlowerMapMain.config.scale, FlowerMapMain.config.legendScale / FlowerMapMain.config.scale, 1.0f);
             int i = 0;
@@ -365,18 +366,18 @@ public class FlowerMapRenderer
                 guiGraphics.drawString(minecraft.font, getFlowerName(e.getKey()), 17, 7 + i++ * 12, 0xffffffff);
             }
             guiGraphics.pose().popPose();
-            Profiler.get().pop();
+            minecraft.getProfiler().pop();
         }
         
         // PLAYER POSITION MARKER
         guiGraphics.pose().translate((int)width - 256 - 5 + 128, 5 + 128, 0);
         guiGraphics.pose().mulPose(Axis.ZP.rotationDegrees(minecraft.player.getYRot() + 180.0f));
-        guiGraphics.blit(RenderType::guiTextured, pointerLocation, -8, -9, 0.0F, 0.0F, 16, 16, 16, 16);
+        guiGraphics.blit(pointerLocation, -8, -9, 0.0F, 0.0F, 16, 16, 16, 16);
         
         guiGraphics.flush();
         guiGraphics.pose().popPose();
         RenderSystem.restoreProjectionMatrix();
         matrixStack.popMatrix();
-        Profiler.get().pop();
+        minecraft.getProfiler().pop();
     }
 }
