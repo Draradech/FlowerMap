@@ -3,17 +3,12 @@ package de.draradech.flowermap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.joml.Matrix4f;
-import org.joml.Matrix4fStack;
 
-import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.platform.Window;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.math.Axis;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -54,9 +49,9 @@ public class FlowerMapRenderer
     DynamicTexture texture = null;
     ResourceLocation textureLocation;
     ResourceLocation pointerLocation;
-    
-    Map<Block, Integer> colorMap = new LinkedHashMap<Block, Integer>();
-    Map<Block, Integer> errorMap = new LinkedHashMap<Block, Integer>();
+
+    Map<Block, Integer> colorMap = new LinkedHashMap<>();
+    Map<Block, Integer> errorMap = new LinkedHashMap<>();
     Thread renderThread;
     boolean textureRendering;
     
@@ -93,8 +88,8 @@ public class FlowerMapRenderer
         errorMap.put(Blocks.RED_WOOL, color(255, 0, 255)); // can't get biome key
         
         noise = NormalNoise.create(new WorldgenRandom(new LegacyRandomSource(2345L)), new NoiseParameters(0, 1.0));
-        
-        renderThread = new Thread(new Runnable() { public void run() { renderTexture(); } } );
+
+        renderThread = new Thread(this::renderTexture);
         textureRendering = false;
         renderThread.start();
     }
@@ -165,7 +160,7 @@ public class FlowerMapRenderer
         guiGraphics.drawString(minecraft.font, flowerName, w - 5 - 256 + 12, 256 + 5 + 5 + 12 * (i + 3), 0xffffffff);
     }
     
-    public void renderPossibleFlowerNamesAt(BlockPos pos, RandomSource randomSource, int w, GuiGraphics gui)
+    public void renderPossibleFlowerNamesAt(BlockPos pos, int w, GuiGraphics gui)
     {
         // The client-side biomes don't know their generation settings.
         // As a workaround, assume biomes haven't been modified via datapack and get the biome from the builtin registry.
@@ -296,33 +291,24 @@ public class FlowerMapRenderer
     {
         if (!FlowerMapMain.config.enabled) return;
         
-        // there should be nothing in the buffers, just to be safe, we flush before changing render config.
-        guiGraphics.flush();
-
-        Profiler.get().push("flowermap");
+        Profiler.get().push(FlowerMapMain.MODID);
         
         // SETUP
         if (texture == null)
         {
             texture = new DynamicTexture((String)null, 256, 256, false);
             texture.setFilter(false, false);
-            pointerLocation = ResourceLocation.fromNamespaceAndPath("flowermap", "pointer.png");
-            textureLocation = ResourceLocation.fromNamespaceAndPath("flowermap", "dynamic_map");
+            pointerLocation = ResourceLocation.fromNamespaceAndPath(FlowerMapMain.MODID, "pointer.png");
+            textureLocation = ResourceLocation.fromNamespaceAndPath(FlowerMapMain.MODID, "dynamic_map");
             minecraft.getTextureManager().register(textureLocation, texture);
         }
+
         Window window = minecraft.getWindow();
         float width = window.getWidth() / FlowerMapMain.config.scale;
-        float height = window.getHeight() / FlowerMapMain.config.scale;
-        RenderSystem.backupProjectionMatrix();
-        
-        Matrix4f noguiscale = new Matrix4f().setOrtho(0.0f, width, height, 0.0f, 1000.0f, 21000.0f);
-        RenderSystem.setProjectionMatrix(noguiscale, ProjectionType.ORTHOGRAPHIC);
-        Matrix4fStack matrixStack = RenderSystem.getModelViewStack();
-        matrixStack.pushMatrix();
-        matrixStack.identity();
-        matrixStack.translate(0.0f, 0.0f, -11000.0f);
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().setIdentity();
+
+        guiGraphics.pose().pushMatrix();
+        guiGraphics.pose().identity();
+        guiGraphics.pose().scale(FlowerMapMain.config.scale / window.getGuiScale());
         
         // RENDER THREAD CONTROL, TEXTURE UPLOAD
         if (textureRendering == false)
@@ -334,7 +320,7 @@ public class FlowerMapRenderer
         }
         
         // FLOWER GRADIENT TEXTURE
-        guiGraphics.blit(RenderType::guiTextured, textureLocation, (int)width - 256 - 5, 5, 0.0F, 0.0F, 256, 256, 256, 256);
+        guiGraphics.blit(RenderPipelines.GUI_TEXTURED, textureLocation, (int)width - 256 - 5, 5, 0.0F, 0.0F, 256, 256, 256, 256);
         
         // Y LEVEL AND BIOME
         if (FlowerMapMain.config.dynamic)
@@ -357,33 +343,30 @@ public class FlowerMapRenderer
         Component desc = Component.literal("Possible flowers at this location:");
         guiGraphics.drawString(minecraft.font, desc, (int)width - 256 - 5, 256 + 5 + 5 + 24, 0xffffffff);
         
-        renderPossibleFlowerNamesAt(pos, rand_text, (int)width, guiGraphics);
+        renderPossibleFlowerNamesAt(pos, (int)width, guiGraphics);
         
         // LEGEND
         if (FlowerMapMain.config.legend)
         {
             Profiler.get().push("legend");
-            guiGraphics.pose().pushPose();
-            guiGraphics.pose().scale(FlowerMapMain.config.legendScale / FlowerMapMain.config.scale, FlowerMapMain.config.legendScale / FlowerMapMain.config.scale, 1.0f);
+            guiGraphics.pose().pushMatrix();
+            guiGraphics.pose().scale(FlowerMapMain.config.legendScale / FlowerMapMain.config.scale);
             int i = 0;
             for (Map.Entry<Block, Integer> e : colorMap.entrySet())
             {
                 guiGraphics.fill(5, 5 + i * 12, 15, 15 + i * 12, e.getValue());
                 guiGraphics.drawString(minecraft.font, getFlowerName(e.getKey()), 17, 7 + i++ * 12, 0xffffffff);
             }
-            guiGraphics.pose().popPose();
+            guiGraphics.pose().popMatrix();
             Profiler.get().pop();
         }
         
         // PLAYER POSITION MARKER
-        guiGraphics.pose().translate((int)width - 256 - 5 + 128, 5 + 128, 0);
-        guiGraphics.pose().mulPose(Axis.ZP.rotationDegrees(minecraft.player.getYRot() + 180.0f));
-        guiGraphics.blit(RenderType::guiTextured, pointerLocation, -8, -9, 0.0F, 0.0F, 16, 16, 16, 16);
+        guiGraphics.pose().translate((int)width - 256 - 5 + 128, 5 + 128);
+        guiGraphics.pose().rotate((float)(Math.PI / 180.0) * (minecraft.player.getYRot() + 180.0f));
+        guiGraphics.blit(RenderPipelines.GUI_TEXTURED, pointerLocation, -8, -9, 0.0F, 0.0F, 16, 16, 16, 16);
         
-        guiGraphics.flush();
-        guiGraphics.pose().popPose();
-        RenderSystem.restoreProjectionMatrix();
-        matrixStack.popMatrix();
+        guiGraphics.pose().popMatrix();
         Profiler.get().pop();
     }
 }

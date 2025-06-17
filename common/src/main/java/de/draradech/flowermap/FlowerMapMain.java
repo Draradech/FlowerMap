@@ -12,6 +12,8 @@ import org.lwjgl.glfw.GLFW;
 
 
 public class FlowerMapMain {
+    public static final String MODID = "flowermap";
+
     public static FlowerMapConfig config;
     public static ConfigHolder<FlowerMapConfig> configHolder;
     public static FlowerMapRenderer renderer;
