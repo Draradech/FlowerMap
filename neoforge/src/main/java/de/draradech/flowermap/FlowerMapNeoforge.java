@@ -23,11 +23,13 @@ public class FlowerMapNeoforge {
         });
     }
 
-    @EventBusSubscriber(modid = FlowerMapMain.MODID, bus = EventBusSubscriber.Bus.MOD)
+    @EventBusSubscriber(modid = FlowerMapMain.MODID)
     static class ModBusSubscriber {
         @SubscribeEvent
         public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
             FlowerMapMain.init();
+
+            event.registerCategory(FlowerMapMain.keyCategory);
 
             event.register(FlowerMapMain.keyToggle);
             event.register(FlowerMapMain.keyToggleDynamic);

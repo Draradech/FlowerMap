@@ -6,7 +6,7 @@
 "text.autoconfig.flowermap.option.legendScale":"Legend scale",
 "text.autoconfig.flowermap.option.dynamic":"Map y follows player (dynamic mode)",
 "text.autoconfig.flowermap.option.fixedY":"Map y (fixed mode)",
-"key.category.flowermap":"Flower Map",
+"key.category.flowermap.keycategory":"Flower Map",
 "key.flowermap.toggle":"Toggle Flower Map",
 "key.flowermap.toggleDynamic":"Fixed y mode toggle",
 "key.flowermap.increaseY":"Fixed y mode: Increase y",

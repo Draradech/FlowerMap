@@ -3,6 +3,7 @@ package de.draradech.flowermap;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 
 import me.shedaniel.autoconfig.AutoConfig;
@@ -22,15 +23,18 @@ public class FlowerMapMain {
     public static KeyMapping keyIncreaseY;
     public static KeyMapping keyDecreaseY;
     public static KeyMapping keySetY;
+    public static KeyMapping.Category keyCategory;
     
     public static void init() {
         renderer = new FlowerMapRenderer();
 
-        keyToggle = new KeyMapping("key.flowermap.toggle", GLFW.GLFW_KEY_F8, "key.category.flowermap");
-        keyToggleDynamic = new KeyMapping("key.flowermap.toggleDynamic", GLFW.GLFW_KEY_KP_MULTIPLY, "key.category.flowermap");
-        keyIncreaseY = new KeyMapping("key.flowermap.increaseY", GLFW.GLFW_KEY_KP_ADD, "key.category.flowermap");
-        keyDecreaseY = new KeyMapping("key.flowermap.decreaseY", GLFW.GLFW_KEY_KP_SUBTRACT, "key.category.flowermap");
-        keySetY = new KeyMapping("key.flowermap.setY", GLFW.GLFW_KEY_KP_0, "key.category.flowermap");
+        keyCategory = KeyMapping.Category.register(ResourceLocation.fromNamespaceAndPath(FlowerMapMain.MODID, "keycategory"));
+
+        keyToggle = new KeyMapping("key.flowermap.toggle", GLFW.GLFW_KEY_F8, keyCategory);
+        keyToggleDynamic = new KeyMapping("key.flowermap.toggleDynamic", GLFW.GLFW_KEY_KP_MULTIPLY, keyCategory);
+        keyIncreaseY = new KeyMapping("key.flowermap.increaseY", GLFW.GLFW_KEY_KP_ADD, keyCategory);
+        keyDecreaseY = new KeyMapping("key.flowermap.decreaseY", GLFW.GLFW_KEY_KP_SUBTRACT, keyCategory);
+        keySetY = new KeyMapping("key.flowermap.setY", GLFW.GLFW_KEY_KP_0, keyCategory);
 
         configHolder = AutoConfig.register(FlowerMapConfig.class, GsonConfigSerializer::new);
         config = AutoConfig.getConfigHolder(FlowerMapConfig.class).getConfig();
