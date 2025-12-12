@@ -1,10 +1,10 @@
 package de.draradech.flowermap;
 
-import me.shedaniel.autoconfig.AutoConfig;
+import me.shedaniel.autoconfig.AutoConfigClient;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModLoadingContext;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -19,7 +19,7 @@ import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 public class FlowerMapNeoforge {
     public FlowerMapNeoforge() {
         ModLoadingContext.get().registerExtensionPoint(IConfigScreenFactory.class, () -> (container, parent) -> {
-            return AutoConfig.getConfigScreen(FlowerMapConfig.class, parent).get();
+            return AutoConfigClient.getConfigScreen(FlowerMapConfig.class, parent).get();
         });
     }
 
@@ -32,7 +32,7 @@ public class FlowerMapNeoforge {
             event.registerCategory(FlowerMapMain.keyCategory);
 
             event.register(FlowerMapMain.keyToggle);
-            event.register(FlowerMapMain.keyToggleDynamic);
+            event.register(FlowerMapMain.keyToggleMode);
             event.register(FlowerMapMain.keyIncreaseY);
             event.register(FlowerMapMain.keyDecreaseY);
             event.register(FlowerMapMain.keySetY);
@@ -42,7 +42,7 @@ public class FlowerMapNeoforge {
         public static void registerGuiLayers(RegisterGuiLayersEvent event) {
             event.registerAbove(
                 VanillaGuiLayers.BOSS_OVERLAY,
-                ResourceLocation.fromNamespaceAndPath(FlowerMapMain.MODID,"hud-layer"),
+                Identifier.fromNamespaceAndPath(FlowerMapMain.MODID,"hud-layer"),
                 new GuiLayer() {
                     @Override
                     public void render(GuiGraphics guiGraphics, DeltaTracker deltaTracker) {

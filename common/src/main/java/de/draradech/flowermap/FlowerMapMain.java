@@ -3,7 +3,7 @@ package de.draradech.flowermap;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 
 import me.shedaniel.autoconfig.AutoConfig;
@@ -19,7 +19,7 @@ public class FlowerMapMain {
     public static ConfigHolder<FlowerMapConfig> configHolder;
     public static FlowerMapRenderer renderer;
     public static KeyMapping keyToggle;
-    public static KeyMapping keyToggleDynamic;
+    public static KeyMapping keyToggleMode;
     public static KeyMapping keyIncreaseY;
     public static KeyMapping keyDecreaseY;
     public static KeyMapping keySetY;
@@ -28,10 +28,10 @@ public class FlowerMapMain {
     public static void init() {
         renderer = new FlowerMapRenderer();
 
-        keyCategory = KeyMapping.Category.register(ResourceLocation.fromNamespaceAndPath(FlowerMapMain.MODID, "keycategory"));
+        keyCategory = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(FlowerMapMain.MODID, "keycategory"));
 
         keyToggle = new KeyMapping("key.flowermap.toggle", GLFW.GLFW_KEY_F8, keyCategory);
-        keyToggleDynamic = new KeyMapping("key.flowermap.toggleDynamic", GLFW.GLFW_KEY_KP_MULTIPLY, keyCategory);
+        keyToggleMode = new KeyMapping("key.flowermap.toggleMode", GLFW.GLFW_KEY_KP_MULTIPLY, keyCategory);
         keyIncreaseY = new KeyMapping("key.flowermap.increaseY", GLFW.GLFW_KEY_KP_ADD, keyCategory);
         keyDecreaseY = new KeyMapping("key.flowermap.decreaseY", GLFW.GLFW_KEY_KP_SUBTRACT, keyCategory);
         keySetY = new KeyMapping("key.flowermap.setY", GLFW.GLFW_KEY_KP_0, keyCategory);
@@ -42,11 +42,11 @@ public class FlowerMapMain {
     
     public static void render(GuiGraphics guiGraphics)
     {
-        if (keyIncreaseY.consumeClick()     && config.enabled && !config.dynamic) {config.fixedY = Mth.clamp(config.fixedY + 1, -63, 319);     configHolder.save();}
-        if (keyDecreaseY.consumeClick()     && config.enabled && !config.dynamic) {config.fixedY = Mth.clamp(config.fixedY - 1, -63, 319);     configHolder.save();}
-        if (keySetY.consumeClick()          && config.enabled && !config.dynamic) {config.fixedY = Minecraft.getInstance().player.getBlockY(); configHolder.save();}
-        if (keyToggleDynamic.consumeClick() && config.enabled)                    {config.dynamic = !config.dynamic;                           configHolder.save();}
-        if (keyToggle.consumeClick())                                             {config.enabled = !config.enabled;                           configHolder.save();}
+        if (keyIncreaseY.consumeClick()  && config.enabled && config.mode == FlowerMapConfig.EMode.FIXED) {config.fixedY = Mth.clamp(config.fixedY + 1, -63, 319); configHolder.save();}
+        if (keyDecreaseY.consumeClick()  && config.enabled && config.mode == FlowerMapConfig.EMode.FIXED) {config.fixedY = Mth.clamp(config.fixedY - 1, -63, 319); configHolder.save();}
+        if (keySetY.consumeClick()       && config.enabled && config.mode == FlowerMapConfig.EMode.FIXED) {config.fixedY = Minecraft.getInstance().player.getBlockY();             configHolder.save();}
+        if (keyToggleMode.consumeClick() && config.enabled) {config.mode = FlowerMapConfig.EMode.values()[(config.mode.ordinal() + 1) % (FlowerMapConfig.EMode.values().length)];  configHolder.save();}
+        if (keyToggle.consumeClick()) {config.enabled = !config.enabled; configHolder.save();}
         renderer.render(guiGraphics);
     }
 }
