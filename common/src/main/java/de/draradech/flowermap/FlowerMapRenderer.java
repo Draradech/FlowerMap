@@ -1,14 +1,15 @@
 package de.draradech.flowermap;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
+import com.google.common.collect.ImmutableList;
 import com.mojang.blaze3d.platform.Window;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.core.HolderSet;
+import net.minecraft.data.worldgen.features.VegetationFeatures;
 import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -30,13 +31,13 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.LegacyRandomSource;
 import net.minecraft.world.level.levelgen.WorldgenRandom;
 import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
-import net.minecraft.world.level.levelgen.feature.configurations.RandomPatchConfiguration;
 import net.minecraft.world.level.levelgen.feature.configurations.SimpleBlockConfiguration;
 import net.minecraft.world.level.levelgen.feature.stateproviders.BlockStateProvider;
 import net.minecraft.world.level.levelgen.feature.stateproviders.NoiseProvider;
 import net.minecraft.world.level.levelgen.feature.stateproviders.NoiseThresholdProvider;
 import net.minecraft.world.level.levelgen.feature.stateproviders.SimpleStateProvider;
 import net.minecraft.world.level.levelgen.feature.stateproviders.WeightedStateProvider;
+import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 import net.minecraft.world.level.levelgen.synth.NormalNoise;
 import net.minecraft.world.level.levelgen.synth.NormalNoise.NoiseParameters;
 
@@ -53,10 +54,13 @@ public class FlowerMapRenderer
 
     Map<Block, Integer> colorMap = new LinkedHashMap<>();
     Map<Block, Integer> errorMap = new LinkedHashMap<>();
+    Map<Biome, List<ConfiguredFeature<?,?>>> biomeFeatureCache = new LinkedHashMap<>();
     Thread renderThread;
     boolean textureRendering;
     
     RegistryLookup<Biome> vanillaBiomes = null;
+    ArrayList<ResourceKey<ConfiguredFeature<?, ?>>> canSpawnFromBonemealList = new ArrayList<>(10);
+
     NormalNoise noise;
     
     int color(int r, int g, int b)
@@ -87,7 +91,16 @@ public class FlowerMapRenderer
         errorMap.put(Blocks.GREEN_WOOL, color(127, 255, 127)); // unknown flower
         errorMap.put(Blocks.YELLOW_WOOL, color(0, 255, 0)); // can't get biome
         errorMap.put(Blocks.RED_WOOL, color(255, 0, 255)); // can't get biome key
-        
+
+        canSpawnFromBonemealList.add(VegetationFeatures.FLOWER_DEFAULT);
+        canSpawnFromBonemealList.add(VegetationFeatures.FLOWER_FLOWER_FOREST);
+        canSpawnFromBonemealList.add(VegetationFeatures.FLOWER_SWAMP);
+        canSpawnFromBonemealList.add(VegetationFeatures.FLOWER_PLAIN);
+        canSpawnFromBonemealList.add(VegetationFeatures.FLOWER_MEADOW);
+        canSpawnFromBonemealList.add(VegetationFeatures.FLOWER_CHERRY);
+        canSpawnFromBonemealList.add(VegetationFeatures.WILDFLOWER);
+        canSpawnFromBonemealList.add(VegetationFeatures.FLOWER_PALE_GARDEN);
+
         noise = NormalNoise.create(new WorldgenRandom(new LegacyRandomSource(2345L)), new NoiseParameters(0, 1.0));
 
         renderThread = new Thread(this::renderTexture);
@@ -106,14 +119,35 @@ public class FlowerMapRenderer
     
     void loadVanillaBiomes()
     {
+        // The client-side biomes don't know their generation settings.
+        // As a workaround, assume biomes haven't been modified via datapack and get the biome from the builtin registry.
         HolderLookup.Provider vanillaRegistries = VanillaRegistries.createLookup();
         vanillaBiomes = vanillaRegistries.lookupOrThrow(Registries.BIOME);
     }
-    
+
+    List<ConfiguredFeature<?,?>> getBonemealFeatures(Biome biome)
+    {
+        // the biomes created from the builtin registry are missing tags
+        // with the new can_spawn_from_bonemeal tag for vegetation features we can no longer just call getFlowerFeatures (now called getBonemealFeatures)
+        // iterate through the feature stream and collect matching features manually
+        if (!biomeFeatureCache.containsKey(biome))
+        {
+            biomeFeatureCache.put(biome,
+                    biome.getGenerationSettings().features().stream()
+                            .flatMap(HolderSet::stream)
+                            .flatMap(feature -> ((PlacedFeature)feature.value()).getFeatures())
+                            .filter(feature -> {
+                                Optional<ResourceKey<ConfiguredFeature<?, ?>>> key = feature.unwrapKey();
+                                return key.isPresent() && canSpawnFromBonemealList.contains(key.get());})
+                            .map(Holder::value)
+                            .collect(ImmutableList.toImmutableList()));
+        }
+
+        return biomeFeatureCache.get(biome);
+    }
+
     Block getRandomFlowerAt(BlockPos pos, RandomSource randomSource)
     {
-        // The client-side biomes don't know their generation settings.
-        // As a workaround, assume biomes haven't been modified via datapack and get the biome from the builtin registry.
         if(vanillaBiomes == null)
         {
             loadVanillaBiomes();
@@ -137,7 +171,7 @@ public class FlowerMapRenderer
             else
             {
                 Biome vanillaBiome = vanillaBiomeRef.value();
-                List<ConfiguredFeature<?, ?>> list = vanillaBiome.getGenerationSettings().getFlowerFeatures();
+                List<ConfiguredFeature<?, ?>> list = getBonemealFeatures(vanillaBiome);
                 if (list.isEmpty())
                 {
                     // no flowers can grow here
@@ -147,24 +181,21 @@ public class FlowerMapRenderer
                 {
                     // get a random flower from a random state provider at this position
                     int k = randomSource.nextInt(list.size());
-                    RandomPatchConfiguration config = (RandomPatchConfiguration) list.get(k).config();
-                    SimpleBlockConfiguration flowerMap = (SimpleBlockConfiguration) config.feature().value().feature().value().config();
-                    return flowerMap.toPlace().getState(rand_render, pos).getBlock();
+                    SimpleBlockConfiguration flowerMap = (SimpleBlockConfiguration) list.get(k).config();
+                    return flowerMap.toPlace().getState(null, rand_render, pos).getBlock();
                 }
             }
         }
     }
     
-    public void renderPossibleFlowerName(GuiGraphics guiGraphics, Block block, int w, int i)
+    public void renderPossibleFlowerName(GuiGraphicsExtractor guiGraphics, Block block, int w, int i)
     {
         Component flowerName = getFlowerName(block);
-        guiGraphics.drawString(minecraft.font, flowerName, w - 5 - 256 + 12, 256 + 5 + 5 + 12 * (i + 3), 0xffffffff);
+        guiGraphics.text(minecraft.font, flowerName, w - 5 - 256 + 12, 256 + 5 + 5 + 12 * (i + 3), 0xffffffff);
     }
     
-    public void renderPossibleFlowerNamesAt(BlockPos pos, int w, GuiGraphics gui)
+    public void renderPossibleFlowerNamesAt(BlockPos pos, int w, GuiGraphicsExtractor gui)
     {
-        // The client-side biomes don't know their generation settings.
-        // As a workaround, assume biomes haven't been modified via datapack and get the biome from the builtin registry.
         if(vanillaBiomes == null)
         {
             loadVanillaBiomes();
@@ -189,7 +220,7 @@ public class FlowerMapRenderer
             else
             {
                 Biome vanillaBiome = vanillaBiomeRef.value();
-                List<ConfiguredFeature<?, ?>> list = vanillaBiome.getGenerationSettings().getFlowerFeatures();
+                List<ConfiguredFeature<?, ?>> list = getBonemealFeatures(vanillaBiome);
                 if (list.isEmpty()) {
                     // no flowers can grow here
                     renderPossibleFlowerName(gui, Blocks.GRAY_WOOL, w, k++);
@@ -199,20 +230,19 @@ public class FlowerMapRenderer
                     // go through the list of state providers, with custom handling by provider type
                     for(ConfiguredFeature<?, ?> feature : list)
                     {
-                        RandomPatchConfiguration config = (RandomPatchConfiguration) feature.config();
-                        SimpleBlockConfiguration flowerMap = (SimpleBlockConfiguration) config.feature().value().feature().value().config();
+                        SimpleBlockConfiguration flowerMap = (SimpleBlockConfiguration) feature.config();
                         BlockStateProvider bsp = flowerMap.toPlace();
                         if (  (bsp instanceof NoiseProvider)
                            || (bsp instanceof SimpleStateProvider)
                            )
                         {
                             // these have no randomness, so we can just query them directly
-                            renderPossibleFlowerName(gui, bsp.getState(rand_text, pos).getBlock(), w, k++);
+                            renderPossibleFlowerName(gui, bsp.getState(null, rand_text, pos).getBlock(), w, k++);
                         }
                         else if (bsp instanceof WeightedStateProvider)
                         {
                             // this can be default, cherry or wild flower overlay
-                            Block b = bsp.getState(rand_text, pos).getBlock();
+                            Block b = bsp.getState(null, rand_text, pos).getBlock();
                             if (b == Blocks.WILDFLOWERS)
                             {
                                 // wild flower overlay (only wildflowers)
@@ -293,7 +323,7 @@ public class FlowerMapRenderer
         }
     }
     
-    public void render(GuiGraphics guiGraphics)
+    public void render(GuiGraphicsExtractor guiGraphics)
     {
         if (!FlowerMapMain.config.enabled) return;
         
@@ -332,27 +362,27 @@ public class FlowerMapRenderer
 
         if (FlowerMapMain.config.mode == FlowerMapConfig.EMode.PLAYER)
         {
-            guiGraphics.drawString(minecraft.font, String.format("Position (xzy): %d, %d, %d (player)", minecraft.player.getBlockX(), minecraft.player.getBlockZ(), minecraft.player.getBlockY()), (int)width - 256 - 5, 256 + 5 + 5 + 12, 0xffffffff);
+            guiGraphics.text(minecraft.font, String.format("Position (xzy): %d, %d, %d (player)", minecraft.player.getBlockX(), minecraft.player.getBlockZ(), minecraft.player.getBlockY()), (int)width - 256 - 5, 256 + 5 + 5 + 12, 0xffffffff);
         }
         else if (FlowerMapMain.config.mode == FlowerMapConfig.EMode.FIXED)
         {
-            guiGraphics.drawString(minecraft.font, String.format("Position (xzy): %d, %d, %d (fixed y)", minecraft.player.getBlockX(), minecraft.player.getBlockZ(), FlowerMapMain.config.fixedY), (int)width - 256 - 5, 256 + 5 + 5 + 12, 0xffffffff);
+            guiGraphics.text(minecraft.font, String.format("Position (xzy): %d, %d, %d (fixed y)", minecraft.player.getBlockX(), minecraft.player.getBlockZ(), FlowerMapMain.config.fixedY), (int)width - 256 - 5, 256 + 5 + 5 + 12, 0xffffffff);
             pos.setY(FlowerMapMain.config.fixedY);
         }
         else if (FlowerMapMain.config.mode == FlowerMapConfig.EMode.SURFACE)
         {
             int y = minecraft.player.level().getHeight(Heightmap.Types.WORLD_SURFACE, minecraft.player.getBlockX(), minecraft.player.getBlockZ());
-            guiGraphics.drawString(minecraft.font, String.format("Position (xzy): %d, %d, %d (surface)", minecraft.player.getBlockX(), minecraft.player.getBlockZ(), y), (int)width - 256 - 5, 256 + 5 + 5 + 12, 0xffffffff);
+            guiGraphics.text(minecraft.font, String.format("Position (xzy): %d, %d, %d (surface)", minecraft.player.getBlockX(), minecraft.player.getBlockZ(), y), (int)width - 256 - 5, 256 + 5 + 5 + 12, 0xffffffff);
             pos.setY(y);
         }
 
         Holder<Biome> biomeEntry = minecraft.player.level().getBiome(pos);
         MutableComponent biomeName = Component.translatable(Util.makeDescriptionId("biome", biomeEntry.unwrapKey().get().identifier()));
-        guiGraphics.drawString(minecraft.font, Component.literal("Biome: ").append(biomeName), (int)width - 5 - 256, 256 + 5 + 5, 0xffffffff);
+        guiGraphics.text(minecraft.font, Component.literal("Biome: ").append(biomeName), (int)width - 5 - 256, 256 + 5 + 5, 0xffffffff);
 
         // POSSIBLE FLOWERS
         Component desc = Component.literal("Possible flowers at this location:");
-        guiGraphics.drawString(minecraft.font, desc, (int)width - 256 - 5, 256 + 5 + 5 + 24, 0xffffffff);
+        guiGraphics.text(minecraft.font, desc, (int)width - 256 - 5, 256 + 5 + 5 + 24, 0xffffffff);
         
         renderPossibleFlowerNamesAt(pos, (int)width, guiGraphics);
         
@@ -366,7 +396,7 @@ public class FlowerMapRenderer
             for (Map.Entry<Block, Integer> e : colorMap.entrySet())
             {
                 guiGraphics.fill(5, 5 + i * 12, 15, 15 + i * 12, e.getValue());
-                guiGraphics.drawString(minecraft.font, getFlowerName(e.getKey()), 17, 7 + i++ * 12, 0xffffffff);
+                guiGraphics.text(minecraft.font, getFlowerName(e.getKey()), 17, 7 + i++ * 12, 0xffffffff);
             }
             guiGraphics.pose().popMatrix();
             Profiler.get().pop();

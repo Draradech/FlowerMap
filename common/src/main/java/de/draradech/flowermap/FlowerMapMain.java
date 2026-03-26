@@ -2,7 +2,7 @@ package de.draradech.flowermap;
 
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 
@@ -40,7 +40,7 @@ public class FlowerMapMain {
         config = AutoConfig.getConfigHolder(FlowerMapConfig.class).getConfig();
     }
     
-    public static void render(GuiGraphics guiGraphics)
+    public static void render(GuiGraphicsExtractor guiGraphics)
     {
         if (keyIncreaseY.consumeClick()  && config.enabled && config.mode == FlowerMapConfig.EMode.FIXED) {config.fixedY = Mth.clamp(config.fixedY + 1, -63, 319); configHolder.save();}
         if (keyDecreaseY.consumeClick()  && config.enabled && config.mode == FlowerMapConfig.EMode.FIXED) {config.fixedY = Mth.clamp(config.fixedY - 1, -63, 319); configHolder.save();}

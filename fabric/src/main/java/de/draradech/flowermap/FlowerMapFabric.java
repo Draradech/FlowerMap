@@ -1,7 +1,7 @@
 package de.draradech.flowermap;
 
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 
@@ -12,11 +12,11 @@ public class FlowerMapFabric implements ModInitializer {
     public void onInitialize() {
         FlowerMapMain.init();
 
-        KeyBindingHelper.registerKeyBinding(FlowerMapMain.keyToggle);
-        KeyBindingHelper.registerKeyBinding(FlowerMapMain.keyToggleMode);
-        KeyBindingHelper.registerKeyBinding(FlowerMapMain.keyIncreaseY);
-        KeyBindingHelper.registerKeyBinding(FlowerMapMain.keyDecreaseY);
-        KeyBindingHelper.registerKeyBinding(FlowerMapMain.keySetY);
+        KeyMappingHelper.registerKeyMapping(FlowerMapMain.keyToggle);
+        KeyMappingHelper.registerKeyMapping(FlowerMapMain.keyToggleMode);
+        KeyMappingHelper.registerKeyMapping(FlowerMapMain.keyIncreaseY);
+        KeyMappingHelper.registerKeyMapping(FlowerMapMain.keyDecreaseY);
+        KeyMappingHelper.registerKeyMapping(FlowerMapMain.keySetY);
 
         HudElementRegistry.attachElementAfter(
             VanillaHudElements.BOSS_BAR,

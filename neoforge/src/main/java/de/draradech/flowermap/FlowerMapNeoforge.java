@@ -3,7 +3,7 @@ package de.draradech.flowermap;
 import me.shedaniel.autoconfig.AutoConfigClient;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.resources.Identifier;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModLoadingContext;
@@ -45,7 +45,7 @@ public class FlowerMapNeoforge {
                 Identifier.fromNamespaceAndPath(FlowerMapMain.MODID,"hud-layer"),
                 new GuiLayer() {
                     @Override
-                    public void render(GuiGraphics guiGraphics, DeltaTracker deltaTracker) {
+                    public void render(GuiGraphicsExtractor guiGraphics, DeltaTracker deltaTracker) {
                         if (!Minecraft.getInstance().options.hideGui) FlowerMapMain.render(guiGraphics);
                     }
                 }
