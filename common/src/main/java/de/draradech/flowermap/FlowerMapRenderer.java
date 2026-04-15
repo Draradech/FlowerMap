@@ -5,6 +5,7 @@ import java.util.*;
 import com.google.common.collect.ImmutableList;
 import com.mojang.blaze3d.platform.Window;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.core.HolderSet;
 import net.minecraft.data.worldgen.features.VegetationFeatures;
@@ -24,6 +25,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.RandomSource;
 import net.minecraft.util.profiling.Profiler;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Block;
@@ -146,14 +148,14 @@ public class FlowerMapRenderer
         return biomeFeatureCache.get(biome);
     }
 
-    Block getRandomFlowerAt(BlockPos pos, RandomSource randomSource)
+    Block getRandomFlowerAt(Level level, BlockPos pos, RandomSource randomSource)
     {
         if(vanillaBiomes == null)
         {
             loadVanillaBiomes();
         }
         
-        Holder<Biome> biomeEntry = minecraft.player.level().getBiome(pos);
+        Holder<Biome> biomeEntry = level.getBiome(pos);
         ResourceKey<Biome> biomeKey = biomeEntry.unwrapKey().orElse(null);
         if (biomeKey == null)
         {
@@ -194,15 +196,15 @@ public class FlowerMapRenderer
         guiGraphics.text(minecraft.font, flowerName, w - 5 - 256 + 12, 256 + 5 + 5 + 12 * (i + 3), 0xffffffff);
     }
     
-    public void renderPossibleFlowerNamesAt(BlockPos pos, int w, GuiGraphicsExtractor gui)
+    public void renderPossibleFlowerNamesAt(Level level, BlockPos pos, int w, GuiGraphicsExtractor gui)
     {
         if(vanillaBiomes == null)
         {
             loadVanillaBiomes();
         }
-        
+
         int k = 0;
-        Holder<Biome> biomeEntry = minecraft.player.level().getBiome(pos);
+        Holder<Biome> biomeEntry = level.getBiome(pos);
         ResourceKey<Biome> biomeKey = biomeEntry.unwrapKey().orElse(null);
         if (biomeKey == null)
         {
@@ -292,28 +294,29 @@ public class FlowerMapRenderer
         {
             if(textureRendering == true)
             {
-                int px = minecraft.player.getBlockX();
-                int py = minecraft.player.getBlockY();
-                int pz = minecraft.player.getBlockZ();
-                BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(0, FlowerMapMain.config.fixedY, 0);
-                if (FlowerMapMain.config.mode == FlowerMapConfig.EMode.PLAYER) pos.setY(py);
+                LocalPlayer player = minecraft.player;
+                if (player != null) {
+                    Level level = player.level();
+                    int px = player.getBlockX();
+                    int py = player.getBlockY();
+                    int pz = player.getBlockZ();
+                    BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(0, FlowerMapMain.config.fixedY, 0);
+                    if (FlowerMapMain.config.mode == FlowerMapConfig.EMode.PLAYER) pos.setY(py);
 
-                for (int x = 0; x < 256; ++x)
-                {
-                    for (int z = 0; z < 256; ++z)
-                    {
-                        pos.setX(px + x - 128);
-                        if (FlowerMapMain.config.mode == FlowerMapConfig.EMode.SURFACE)
-                        {
-                            int y = minecraft.player.level().getHeight(Heightmap.Types.WORLD_SURFACE, px + x - 128, pz + z - 128);
-                            pos.setY(y);
+                    for (int x = 0; x < 256; ++x) {
+                        for (int z = 0; z < 256; ++z) {
+                            pos.setX(px + x - 128);
+                            if (FlowerMapMain.config.mode == FlowerMapConfig.EMode.SURFACE) {
+                                int y = level.getHeight(Heightmap.Types.WORLD_SURFACE, px + x - 128, pz + z - 128);
+                                pos.setY(y);
+                            }
+                            pos.setZ(pz + z - 128);
+                            Block block = getRandomFlowerAt(level, pos, rand_render);
+                            texture.getPixels().setPixel(x, z, colorMap.getOrDefault(block, errorMap.getOrDefault(block, errorMap.get(Blocks.GREEN_WOOL))));
                         }
-                        pos.setZ(pz + z - 128);
-                        Block block = getRandomFlowerAt(pos, rand_render);
-                        texture.getPixels().setPixel(x, z, colorMap.getOrDefault(block, errorMap.getOrDefault(block, errorMap.get(Blocks.GREEN_WOOL))));
                     }
+                    textureRendering = false;
                 }
-                textureRendering = false;
                 try { Thread.sleep(50); } catch (InterruptedException e) {}
             }
             else
@@ -326,6 +329,9 @@ public class FlowerMapRenderer
     public void render(GuiGraphicsExtractor guiGraphics)
     {
         if (!FlowerMapMain.config.enabled) return;
+        LocalPlayer player = minecraft.player;
+        if (player == null) return;
+        Level level = player.level();
         
         Profiler.get().push(FlowerMapMain.MODID);
         
@@ -358,25 +364,25 @@ public class FlowerMapRenderer
         guiGraphics.blit(RenderPipelines.GUI_TEXTURED, textureLocation, (int)width - 256 - 5, 5, 0.0F, 0.0F, 256, 256, 256, 256);
         
         // Y LEVEL AND BIOME
-        BlockPos.MutableBlockPos pos = minecraft.player.blockPosition().mutable();
+        BlockPos.MutableBlockPos pos = player.blockPosition().mutable();
 
         if (FlowerMapMain.config.mode == FlowerMapConfig.EMode.PLAYER)
         {
-            guiGraphics.text(minecraft.font, String.format("Position (xzy): %d, %d, %d (player)", minecraft.player.getBlockX(), minecraft.player.getBlockZ(), minecraft.player.getBlockY()), (int)width - 256 - 5, 256 + 5 + 5 + 12, 0xffffffff);
+            guiGraphics.text(minecraft.font, String.format("Position (xzy): %d, %d, %d (player)", player.getBlockX(), player.getBlockZ(), player.getBlockY()), (int)width - 256 - 5, 256 + 5 + 5 + 12, 0xffffffff);
         }
         else if (FlowerMapMain.config.mode == FlowerMapConfig.EMode.FIXED)
         {
-            guiGraphics.text(minecraft.font, String.format("Position (xzy): %d, %d, %d (fixed y)", minecraft.player.getBlockX(), minecraft.player.getBlockZ(), FlowerMapMain.config.fixedY), (int)width - 256 - 5, 256 + 5 + 5 + 12, 0xffffffff);
+            guiGraphics.text(minecraft.font, String.format("Position (xzy): %d, %d, %d (fixed y)", player.getBlockX(), player.getBlockZ(), FlowerMapMain.config.fixedY), (int)width - 256 - 5, 256 + 5 + 5 + 12, 0xffffffff);
             pos.setY(FlowerMapMain.config.fixedY);
         }
         else if (FlowerMapMain.config.mode == FlowerMapConfig.EMode.SURFACE)
         {
-            int y = minecraft.player.level().getHeight(Heightmap.Types.WORLD_SURFACE, minecraft.player.getBlockX(), minecraft.player.getBlockZ());
-            guiGraphics.text(minecraft.font, String.format("Position (xzy): %d, %d, %d (surface)", minecraft.player.getBlockX(), minecraft.player.getBlockZ(), y), (int)width - 256 - 5, 256 + 5 + 5 + 12, 0xffffffff);
+            int y = level.getHeight(Heightmap.Types.WORLD_SURFACE, player.getBlockX(), player.getBlockZ());
+            guiGraphics.text(minecraft.font, String.format("Position (xzy): %d, %d, %d (surface)", player.getBlockX(), player.getBlockZ(), y), (int)width - 256 - 5, 256 + 5 + 5 + 12, 0xffffffff);
             pos.setY(y);
         }
 
-        Holder<Biome> biomeEntry = minecraft.player.level().getBiome(pos);
+        Holder<Biome> biomeEntry = level.getBiome(pos);
         MutableComponent biomeName = Component.translatable(Util.makeDescriptionId("biome", biomeEntry.unwrapKey().get().identifier()));
         guiGraphics.text(minecraft.font, Component.literal("Biome: ").append(biomeName), (int)width - 5 - 256, 256 + 5 + 5, 0xffffffff);
 
@@ -384,7 +390,7 @@ public class FlowerMapRenderer
         Component desc = Component.literal("Possible flowers at this location:");
         guiGraphics.text(minecraft.font, desc, (int)width - 256 - 5, 256 + 5 + 5 + 24, 0xffffffff);
         
-        renderPossibleFlowerNamesAt(pos, (int)width, guiGraphics);
+        renderPossibleFlowerNamesAt(level, pos, (int)width, guiGraphics);
         
         // LEGEND
         if (FlowerMapMain.config.legend)
@@ -404,7 +410,7 @@ public class FlowerMapRenderer
         
         // PLAYER POSITION MARKER
         guiGraphics.pose().translate((int)width - 256 - 5 + 128, 5 + 128);
-        guiGraphics.pose().rotate((float)(Math.PI / 180.0) * (minecraft.player.getYRot() + 180.0f));
+        guiGraphics.pose().rotate((float)(Math.PI / 180.0) * (player.getYRot() + 180.0f));
         guiGraphics.blit(RenderPipelines.GUI_TEXTURED, pointerLocation, -8, -9, 0.0F, 0.0F, 16, 16, 16, 16);
         
         guiGraphics.pose().popMatrix();
