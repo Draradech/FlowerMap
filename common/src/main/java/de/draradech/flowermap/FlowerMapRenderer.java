@@ -89,10 +89,10 @@ public class FlowerMapRenderer
         colorMap.put(Blocks.CLOSED_EYEBLOSSOM, color(127, 63, 0));
         colorMap.put(Blocks.WILDFLOWERS, color(0, 127, 0));
         
-        errorMap.put(Blocks.GRAY_WOOL, color(127, 127, 127)); // no flower can grow
-        errorMap.put(Blocks.GREEN_WOOL, color(127, 255, 127)); // unknown flower
-        errorMap.put(Blocks.YELLOW_WOOL, color(0, 255, 0)); // can't get biome
-        errorMap.put(Blocks.RED_WOOL, color(255, 0, 255)); // can't get biome key
+        errorMap.put(Blocks.WOOL.gray(), color(127, 127, 127)); // no flower can grow
+        errorMap.put(Blocks.WOOL.green(), color(127, 255, 127)); // unknown flower
+        errorMap.put(Blocks.WOOL.yellow(), color(0, 255, 0)); // can't get biome
+        errorMap.put(Blocks.WOOL.red(), color(255, 0, 255)); // can't get biome key
 
         canSpawnFromBonemealList.add(VegetationFeatures.FLOWER_DEFAULT);
         canSpawnFromBonemealList.add(VegetationFeatures.FLOWER_FLOWER_FOREST);
@@ -105,17 +105,18 @@ public class FlowerMapRenderer
 
         noise = NormalNoise.create(new WorldgenRandom(new LegacyRandomSource(2345L)), new NoiseParameters(0, 1.0));
 
-        renderThread = new Thread(this::renderTexture);
+        renderThread = new Thread(this::renderTexture, "FlowerMap texture renderer");
         textureRendering = false;
+        renderThread.setDaemon(true);
         renderThread.start();
     }
     
     Component getFlowerName(Block block)
     {
         if(colorMap.containsKey(block)) return block.getName();
-        if(block == Blocks.GRAY_WOOL) return Component.literal("None");
-        if(block == Blocks.YELLOW_WOOL) return Component.literal("Error: can't get biome");
-        if(block == Blocks.RED_WOOL) return Component.literal("Error: can't get biome key");
+        if(block == Blocks.WOOL.gray()) return Component.literal("None");
+        if(block == Blocks.WOOL.yellow()) return Component.literal("Error: can't get biome");
+        if(block == Blocks.WOOL.red()) return Component.literal("Error: can't get biome key");
         return Component.literal("Error: unknown flower: ").append(block.getName());
     }
     
@@ -160,7 +161,7 @@ public class FlowerMapRenderer
         if (biomeKey == null)
         {
             // couldn't get biome key
-            return Blocks.RED_WOOL;
+            return Blocks.WOOL.red();
         }
         else
         {
@@ -168,7 +169,7 @@ public class FlowerMapRenderer
             if (vanillaBiomeRef == null)
             {
                 // couldn't get vanilla biome
-                return Blocks.YELLOW_WOOL;
+                return Blocks.WOOL.yellow();
             }
             else
             {
@@ -177,7 +178,7 @@ public class FlowerMapRenderer
                 if (list.isEmpty())
                 {
                     // no flowers can grow here
-                    return Blocks.GRAY_WOOL;
+                    return Blocks.WOOL.gray();
                 }
                 else
                 {
@@ -209,7 +210,7 @@ public class FlowerMapRenderer
         if (biomeKey == null)
         {
             // couldn't get biome key
-            renderPossibleFlowerName(gui, Blocks.RED_WOOL, w, k++);
+            renderPossibleFlowerName(gui, Blocks.WOOL.red(), w, k++);
         }
         else
         {
@@ -217,7 +218,7 @@ public class FlowerMapRenderer
             if (vanillaBiomeRef == null)
             {
                 // couldn't get vanilla biome
-                renderPossibleFlowerName(gui, Blocks.YELLOW_WOOL, w, k++);
+                renderPossibleFlowerName(gui, Blocks.WOOL.yellow(), w, k++);
             }
             else
             {
@@ -225,7 +226,7 @@ public class FlowerMapRenderer
                 List<ConfiguredFeature<?, ?>> list = getBonemealFeatures(vanillaBiome);
                 if (list.isEmpty()) {
                     // no flowers can grow here
-                    renderPossibleFlowerName(gui, Blocks.GRAY_WOOL, w, k++);
+                    renderPossibleFlowerName(gui, Blocks.WOOL.gray(), w, k++);
                 }
                 else
                 {
@@ -312,7 +313,7 @@ public class FlowerMapRenderer
                             }
                             pos.setZ(pz + z - 128);
                             Block block = getRandomFlowerAt(level, pos, rand_render);
-                            texture.getPixels().setPixel(x, z, colorMap.getOrDefault(block, errorMap.getOrDefault(block, errorMap.get(Blocks.GREEN_WOOL))));
+                            texture.getPixels().setPixel(x, z, colorMap.getOrDefault(block, errorMap.getOrDefault(block, errorMap.get(Blocks.WOOL.green()))));
                         }
                     }
                     textureRendering = false;

@@ -46,7 +46,7 @@ public class FlowerMapNeoforge {
                 new GuiLayer() {
                     @Override
                     public void render(GuiGraphicsExtractor guiGraphics, DeltaTracker deltaTracker) {
-                        if (!Minecraft.getInstance().options.hideGui) FlowerMapMain.render(guiGraphics);
+                        if (!Minecraft.getInstance().gui.hud.isHidden()) FlowerMapMain.render(guiGraphics);
                     }
                 }
             );
