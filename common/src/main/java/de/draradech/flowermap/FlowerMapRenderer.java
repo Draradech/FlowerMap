@@ -32,16 +32,16 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.LegacyRandomSource;
 import net.minecraft.world.level.levelgen.WorldgenRandom;
-import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
-import net.minecraft.world.level.levelgen.feature.configurations.SimpleBlockConfiguration;
+import net.minecraft.world.level.levelgen.feature.Feature;
+import net.minecraft.world.level.levelgen.feature.SimpleBlockFeature;
 import net.minecraft.world.level.levelgen.feature.stateproviders.BlockStateProvider;
 import net.minecraft.world.level.levelgen.feature.stateproviders.NoiseProvider;
 import net.minecraft.world.level.levelgen.feature.stateproviders.NoiseThresholdProvider;
 import net.minecraft.world.level.levelgen.feature.stateproviders.SimpleStateProvider;
 import net.minecraft.world.level.levelgen.feature.stateproviders.WeightedStateProvider;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
+import net.minecraft.world.level.levelgen.synth.Noise;
 import net.minecraft.world.level.levelgen.synth.NormalNoise;
-import net.minecraft.world.level.levelgen.synth.NormalNoise.NoiseParameters;
 
 
 public class FlowerMapRenderer
@@ -56,14 +56,14 @@ public class FlowerMapRenderer
 
     Map<Block, Integer> colorMap = new LinkedHashMap<>();
     Map<Block, Integer> errorMap = new LinkedHashMap<>();
-    Map<Biome, List<ConfiguredFeature<?,?>>> biomeFeatureCache = new LinkedHashMap<>();
+    Map<Biome, List<Feature>> biomeFeatureCache = new LinkedHashMap<>();
     Thread renderThread;
     boolean textureRendering;
     
     RegistryLookup<Biome> vanillaBiomes = null;
-    ArrayList<ResourceKey<ConfiguredFeature<?, ?>>> canSpawnFromBonemealList = new ArrayList<>(10);
+    ArrayList<ResourceKey<Feature>> canSpawnFromBonemealList = new ArrayList<>(10);
 
-    NormalNoise noise;
+    Noise noise;
     
     int color(int r, int g, int b)
     {
@@ -103,7 +103,7 @@ public class FlowerMapRenderer
         canSpawnFromBonemealList.add(VegetationFeatures.WILDFLOWER);
         canSpawnFromBonemealList.add(VegetationFeatures.FLOWER_PALE_GARDEN);
 
-        noise = NormalNoise.create(new WorldgenRandom(new LegacyRandomSource(2345L)), new NoiseParameters(0, 1.0));
+        noise = NormalNoise.createParity(0, 1.0).create(new WorldgenRandom(new LegacyRandomSource(2345L)));
 
         renderThread = new Thread(this::renderTexture, "FlowerMap texture renderer");
         textureRendering = false;
@@ -124,11 +124,11 @@ public class FlowerMapRenderer
     {
         // The client-side biomes don't know their generation settings.
         // As a workaround, assume biomes haven't been modified via datapack and get the biome from the builtin registry.
-        HolderLookup.Provider vanillaRegistries = VanillaRegistries.createLookup();
+        HolderLookup.Provider vanillaRegistries = VanillaRegistries.createWorldLookup();
         vanillaBiomes = vanillaRegistries.lookupOrThrow(Registries.BIOME);
     }
 
-    List<ConfiguredFeature<?,?>> getBonemealFeatures(Biome biome)
+    List<Feature> getBonemealFeatures(Biome biome)
     {
         // the biomes created from the builtin registry are missing tags
         // with the new can_spawn_from_bonemeal tag for vegetation features we can no longer just call getFlowerFeatures (now called getBonemealFeatures)
@@ -140,7 +140,7 @@ public class FlowerMapRenderer
                             .flatMap(HolderSet::stream)
                             .flatMap(feature -> ((PlacedFeature)feature.value()).getFeatures())
                             .filter(feature -> {
-                                Optional<ResourceKey<ConfiguredFeature<?, ?>>> key = feature.unwrapKey();
+                                Optional<ResourceKey<Feature>> key = feature.unwrapKey();
                                 return key.isPresent() && canSpawnFromBonemealList.contains(key.get());})
                             .map(Holder::value)
                             .collect(ImmutableList.toImmutableList()));
@@ -174,7 +174,7 @@ public class FlowerMapRenderer
             else
             {
                 Biome vanillaBiome = vanillaBiomeRef.value();
-                List<ConfiguredFeature<?, ?>> list = getBonemealFeatures(vanillaBiome);
+                List<Feature> list = getBonemealFeatures(vanillaBiome);
                 if (list.isEmpty())
                 {
                     // no flowers can grow here
@@ -184,8 +184,8 @@ public class FlowerMapRenderer
                 {
                     // get a random flower from a random state provider at this position
                     int k = randomSource.nextInt(list.size());
-                    SimpleBlockConfiguration flowerMap = (SimpleBlockConfiguration) list.get(k).config();
-                    return flowerMap.toPlace().getState(null, rand_render, pos).getBlock();
+                    SimpleBlockFeature flowerMap = (SimpleBlockFeature) list.get(k);
+                    return flowerMap.toPlace().value().getState(null, rand_render, pos).getBlock();
                 }
             }
         }
@@ -223,7 +223,7 @@ public class FlowerMapRenderer
             else
             {
                 Biome vanillaBiome = vanillaBiomeRef.value();
-                List<ConfiguredFeature<?, ?>> list = getBonemealFeatures(vanillaBiome);
+                List<Feature> list = getBonemealFeatures(vanillaBiome);
                 if (list.isEmpty()) {
                     // no flowers can grow here
                     renderPossibleFlowerName(gui, Blocks.WOOL.gray(), w, k++);
@@ -231,10 +231,10 @@ public class FlowerMapRenderer
                 else
                 {
                     // go through the list of state providers, with custom handling by provider type
-                    for(ConfiguredFeature<?, ?> feature : list)
+                    for(Feature feature : list)
                     {
-                        SimpleBlockConfiguration flowerMap = (SimpleBlockConfiguration) feature.config();
-                        BlockStateProvider bsp = flowerMap.toPlace();
+                        SimpleBlockFeature flowerMap = (SimpleBlockFeature) feature;
+                        BlockStateProvider bsp = flowerMap.toPlace().value();
                         if (  (bsp instanceof NoiseProvider)
                            || (bsp instanceof SimpleStateProvider)
                            )
@@ -266,7 +266,7 @@ public class FlowerMapRenderer
                         else if (bsp instanceof NoiseThresholdProvider)
                         {
                             // plains and dripstone caves have 2 different distributions depending on noise value
-                            double t = noise.getValue((double)pos.getX() * 0.005F, (double)pos.getY() * 0.005F, (double)pos.getZ() * 0.005F);
+                            double t = noise.get((double)pos.getX() * 0.005F, (double)pos.getY() * 0.005F, (double)pos.getZ() * 0.005F);
                             if (t < (double)-0.8F)
                             {
                                 renderPossibleFlowerName(gui, Blocks.ORANGE_TULIP, w, k++);

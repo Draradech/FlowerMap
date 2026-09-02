@@ -1,5 +1,6 @@
 package de.draradech.flowermap;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -9,11 +10,16 @@ import net.minecraft.util.Mth;
 import me.shedaniel.autoconfig.AutoConfig;
 import me.shedaniel.autoconfig.ConfigHolder;
 import me.shedaniel.autoconfig.serializer.GsonConfigSerializer;
-import org.lwjgl.glfw.GLFW;
 
 
 public class FlowerMapMain {
     public static final String MODID = "flowermap";
+
+    private static final int KEY_TOGGLE = InputConstants.KEY_F8;
+    private static final int KEY_TOGGLE_MODE = InputConstants.KEY_MULTIPLY;
+    private static final int KEY_INCREASE_Y = InputConstants.KEY_ADD;
+    private static final int KEY_DECREASE_Y = 86; // SDL_SCANCODE_KP_MINUS (no InputConstant available)
+    private static final int KEY_SET_Y = InputConstants.KEY_NUMPAD0;
 
     public static FlowerMapConfig config;
     public static ConfigHolder<FlowerMapConfig> configHolder;
@@ -24,22 +30,22 @@ public class FlowerMapMain {
     public static KeyMapping keyDecreaseY;
     public static KeyMapping keySetY;
     public static KeyMapping.Category keyCategory;
-    
+
     public static void init() {
         renderer = new FlowerMapRenderer();
 
         keyCategory = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(FlowerMapMain.MODID, "keycategory"));
 
-        keyToggle = new KeyMapping("key.flowermap.toggle", GLFW.GLFW_KEY_F8, keyCategory);
-        keyToggleMode = new KeyMapping("key.flowermap.toggleMode", GLFW.GLFW_KEY_KP_MULTIPLY, keyCategory);
-        keyIncreaseY = new KeyMapping("key.flowermap.increaseY", GLFW.GLFW_KEY_KP_ADD, keyCategory);
-        keyDecreaseY = new KeyMapping("key.flowermap.decreaseY", GLFW.GLFW_KEY_KP_SUBTRACT, keyCategory);
-        keySetY = new KeyMapping("key.flowermap.setY", GLFW.GLFW_KEY_KP_0, keyCategory);
+        keyToggle = new KeyMapping("key.flowermap.toggle", KEY_TOGGLE, keyCategory);
+        keyToggleMode = new KeyMapping("key.flowermap.toggleMode", KEY_TOGGLE_MODE, keyCategory);
+        keyIncreaseY = new KeyMapping("key.flowermap.increaseY", KEY_INCREASE_Y, keyCategory);
+        keyDecreaseY = new KeyMapping("key.flowermap.decreaseY", KEY_DECREASE_Y, keyCategory);
+        keySetY = new KeyMapping("key.flowermap.setY", KEY_SET_Y, keyCategory);
 
         configHolder = AutoConfig.register(FlowerMapConfig.class, GsonConfigSerializer::new);
         config = AutoConfig.getConfigHolder(FlowerMapConfig.class).getConfig();
     }
-    
+
     public static void render(GuiGraphicsExtractor guiGraphics)
     {
         if (keyIncreaseY.consumeClick()  && config.enabled && config.mode == FlowerMapConfig.EMode.FIXED) {config.fixedY = Mth.clamp(config.fixedY + 1, -63, 319); configHolder.save();}
