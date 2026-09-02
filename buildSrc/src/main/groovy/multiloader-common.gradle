@@ -42,10 +42,10 @@ repositories {
         url = 'https://maven.blamejared.com'
     }
     maven {
-        url "https://maven.shedaniel.me"
+        url = "https://maven.shedaniel.me"
     }
     maven {
-        url "https://maven.terraformersmc.com/releases"
+        url = "https://maven.terraformersmc.com/releases"
     }
 }
 
@@ -113,13 +113,13 @@ processResources {
 publishing {
     publications {
         register('mavenJava', MavenPublication) {
-            artifactId base.archivesName.get()
+            artifactId = base.archivesName.get()
             from components.java
         }
     }
     repositories {
         maven {
-            url System.getenv('local_maven_url')
+            url = System.getenv('local_maven_url')
         }
     }
 }
