@@ -1,6 +1,7 @@
 package de.draradech.flowermap;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.collect.ImmutableList;
 import com.mojang.blaze3d.platform.Window;
@@ -56,9 +57,9 @@ public class FlowerMapRenderer
 
     Map<Block, Integer> colorMap = new LinkedHashMap<>();
     Map<Block, Integer> errorMap = new LinkedHashMap<>();
-    Map<Biome, List<Feature>> biomeFeatureCache = new LinkedHashMap<>();
+    Map<Biome, List<Feature>> biomeFeatureCache = new ConcurrentHashMap<>();
     Thread renderThread;
-    boolean textureRendering;
+    volatile boolean textureRendering;
     
     RegistryLookup<Biome> vanillaBiomes = null;
     ArrayList<ResourceKey<Feature>> canSpawnFromBonemealList = new ArrayList<>(10);
@@ -128,25 +129,24 @@ public class FlowerMapRenderer
         vanillaBiomes = vanillaRegistries.lookupOrThrow(Registries.BIOME);
     }
 
+    List<Feature> collectBonemealFeatures(Biome biome)
+    {
+        return biome.getGenerationSettings().features().stream()
+                .flatMap(HolderSet::stream)
+                .flatMap(feature -> ((PlacedFeature)feature.value()).getFeatures())
+                .filter(feature -> {
+                    Optional<ResourceKey<Feature>> key = feature.unwrapKey();
+                    return key.isPresent() && canSpawnFromBonemealList.contains(key.get());})
+                .map(Holder::value)
+                .collect(ImmutableList.toImmutableList());
+    }
+
     List<Feature> getBonemealFeatures(Biome biome)
     {
         // the biomes created from the builtin registry are missing tags
         // with the new can_spawn_from_bonemeal tag for vegetation features we can no longer just call getFlowerFeatures (now called getBonemealFeatures)
         // iterate through the feature stream and collect matching features manually
-        if (!biomeFeatureCache.containsKey(biome))
-        {
-            biomeFeatureCache.put(biome,
-                    biome.getGenerationSettings().features().stream()
-                            .flatMap(HolderSet::stream)
-                            .flatMap(feature -> ((PlacedFeature)feature.value()).getFeatures())
-                            .filter(feature -> {
-                                Optional<ResourceKey<Feature>> key = feature.unwrapKey();
-                                return key.isPresent() && canSpawnFromBonemealList.contains(key.get());})
-                            .map(Holder::value)
-                            .collect(ImmutableList.toImmutableList()));
-        }
-
-        return biomeFeatureCache.get(biome);
+        return biomeFeatureCache.computeIfAbsent(biome, this::collectBonemealFeatures);
     }
 
     Block getRandomFlowerAt(Level level, BlockPos pos, RandomSource randomSource)
@@ -185,7 +185,7 @@ public class FlowerMapRenderer
                     // get a random flower from a random state provider at this position
                     int k = randomSource.nextInt(list.size());
                     SimpleBlockFeature flowerMap = (SimpleBlockFeature) list.get(k);
-                    return flowerMap.toPlace().value().getState(null, rand_render, pos).getBlock();
+                    return flowerMap.toPlace().value().getState(null, randomSource, pos).getBlock();
                 }
             }
         }
