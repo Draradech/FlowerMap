@@ -5,6 +5,7 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.resources.Identifier;
+import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModLoadingContext;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -15,7 +16,7 @@ import net.neoforged.neoforge.client.gui.GuiLayer;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 
-@Mod(FlowerMapMain.MODID)
+@Mod(value = FlowerMapMain.MODID, dist = Dist.CLIENT)
 public class FlowerMapNeoforge {
     public FlowerMapNeoforge() {
         ModLoadingContext.get().registerExtensionPoint(IConfigScreenFactory.class, () -> (container, parent) -> {
@@ -23,7 +24,7 @@ public class FlowerMapNeoforge {
         });
     }
 
-    @EventBusSubscriber(modid = FlowerMapMain.MODID)
+    @EventBusSubscriber(modid = FlowerMapMain.MODID, value = Dist.CLIENT)
     static class ModBusSubscriber {
         @SubscribeEvent
         public static void registerKeyMappings(RegisterKeyMappingsEvent event) {

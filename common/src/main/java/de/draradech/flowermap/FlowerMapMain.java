@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 
@@ -50,7 +51,13 @@ public class FlowerMapMain {
     {
         if (keyIncreaseY.consumeClick()  && config.enabled && config.mode == FlowerMapConfig.EMode.FIXED) {config.fixedY = Mth.clamp(config.fixedY + 1, -63, 319); configHolder.save();}
         if (keyDecreaseY.consumeClick()  && config.enabled && config.mode == FlowerMapConfig.EMode.FIXED) {config.fixedY = Mth.clamp(config.fixedY - 1, -63, 319); configHolder.save();}
-        if (keySetY.consumeClick()       && config.enabled && config.mode == FlowerMapConfig.EMode.FIXED) {config.fixedY = Minecraft.getInstance().player.getBlockY();             configHolder.save();}
+        if (keySetY.consumeClick() && config.enabled && config.mode == FlowerMapConfig.EMode.FIXED) {
+            LocalPlayer player = Minecraft.getInstance().player;
+            if (player != null) {
+                config.fixedY = player.getBlockY();
+                configHolder.save();
+            }
+        }
         if (keyToggleMode.consumeClick() && config.enabled) {config.mode = FlowerMapConfig.EMode.values()[(config.mode.ordinal() + 1) % (FlowerMapConfig.EMode.values().length)];  configHolder.save();}
         if (keyToggle.consumeClick()) {config.enabled = !config.enabled; configHolder.save();}
         renderer.render(guiGraphics);

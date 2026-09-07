@@ -384,7 +384,9 @@ public class FlowerMapRenderer
         }
 
         Holder<Biome> biomeEntry = level.getBiome(pos);
-        MutableComponent biomeName = Component.translatable(Util.makeDescriptionId("biome", biomeEntry.unwrapKey().get().identifier()));
+        MutableComponent biomeName = biomeEntry.unwrapKey()
+                .map(key -> Component.translatable(Util.makeDescriptionId("biome", key.identifier())))
+                .orElseGet(() -> Component.literal("Unknown"));
         guiGraphics.text(minecraft.font, Component.literal("Biome: ").append(biomeName), (int)width - 5 - 256, 256 + 5 + 5, 0xffffffff);
 
         // POSSIBLE FLOWERS
