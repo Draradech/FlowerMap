@@ -291,6 +291,8 @@ public class FlowerMapRenderer
     
     void renderTexture()
     {
+        int nextX = 0;
+
         for(;;)
         {
             if(textureRendering == true)
@@ -304,7 +306,8 @@ public class FlowerMapRenderer
                     BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(0, FlowerMapMain.config.fixedY, 0);
                     if (FlowerMapMain.config.mode == FlowerMapConfig.EMode.PLAYER) pos.setY(py);
 
-                    for (int x = 0; x < 256; ++x) {
+                    int endX = nextX + 8;
+                    for (int x = nextX; x < endX; ++x) {
                         for (int z = 0; z < 256; ++z) {
                             pos.setX(px + x - 128);
                             if (FlowerMapMain.config.mode == FlowerMapConfig.EMode.SURFACE) {
@@ -316,14 +319,15 @@ public class FlowerMapRenderer
                             texture.getPixels().setPixel(x, z, colorMap.getOrDefault(block, errorMap.getOrDefault(block, errorMap.get(Blocks.WOOL.green()))));
                         }
                     }
-                    textureRendering = false;
+                    nextX = endX;
+
+                    if (nextX >= 256) {
+                        textureRendering = false;
+                        nextX = 0;
+                    }
                 }
-                try { Thread.sleep(50); } catch (InterruptedException e) {}
             }
-            else
-            {
-                try { Thread.sleep(1); } catch (InterruptedException e) {}
-            }
+            try { Thread.sleep(1); } catch (InterruptedException e) {}
         }
     }
     
