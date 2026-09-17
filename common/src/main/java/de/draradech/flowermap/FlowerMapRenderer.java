@@ -1,34 +1,39 @@
 package de.draradech.flowermap;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.collect.ImmutableList;
 import com.mojang.blaze3d.platform.Window;
+
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.core.HolderSet;
-import net.minecraft.data.worldgen.features.VegetationFeatures;
-import net.minecraft.util.Util;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Holder.Reference;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.HolderLookup.RegistryLookup;
+import net.minecraft.core.HolderSet;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.data.registries.VanillaRegistries;
+import net.minecraft.data.worldgen.features.VegetationFeatures;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.util.RandomSource;
+import net.minecraft.util.Util;
 import net.minecraft.util.profiling.Profiler;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.LegacyRandomSource;
 import net.minecraft.world.level.levelgen.WorldgenRandom;
@@ -56,11 +61,13 @@ public class FlowerMapRenderer
 
     Map<Block, Integer> colorMap = new LinkedHashMap<>();
     Map<Block, Integer> errorMap = new LinkedHashMap<>();
-    Map<Biome, List<ConfiguredFeature<?,?>>> biomeFeatureCache = new LinkedHashMap<>();
+    // accessed from both the render thread and the background texture-rendering thread
+    Map<Biome, List<ConfiguredFeature<?,?>>> biomeFeatureCache = new ConcurrentHashMap<>();
     Thread renderThread;
-    boolean textureRendering;
+    final Object renderLock = new Object();
+    boolean textureRendering; // guarded by renderLock, signalled via renderLock.wait()/notifyAll()
     
-    RegistryLookup<Biome> vanillaBiomes = null;
+    RegistryLookup<Biome> vanillaBiomes;
     ArrayList<ResourceKey<ConfiguredFeature<?, ?>>> canSpawnFromBonemealList = new ArrayList<>(10);
 
     NormalNoise noise;
@@ -105,6 +112,9 @@ public class FlowerMapRenderer
 
         noise = NormalNoise.create(new WorldgenRandom(new LegacyRandomSource(2345L)), new NoiseParameters(0, 1.0));
 
+        // load eagerly so the background render thread and the UI thread never race on lazy init
+        loadVanillaBiomes();
+
         renderThread = new Thread(this::renderTexture, "FlowerMap texture renderer");
         textureRendering = false;
         renderThread.setDaemon(true);
@@ -133,29 +143,17 @@ public class FlowerMapRenderer
         // the biomes created from the builtin registry are missing tags
         // with the new can_spawn_from_bonemeal tag for vegetation features we can no longer just call getFlowerFeatures (now called getBonemealFeatures)
         // iterate through the feature stream and collect matching features manually
-        if (!biomeFeatureCache.containsKey(biome))
-        {
-            biomeFeatureCache.put(biome,
-                    biome.getGenerationSettings().features().stream()
-                            .flatMap(HolderSet::stream)
-                            .flatMap(feature -> ((PlacedFeature)feature.value()).getFeatures())
-                            .filter(feature -> {
-                                Optional<ResourceKey<ConfiguredFeature<?, ?>>> key = feature.unwrapKey();
-                                return key.isPresent() && canSpawnFromBonemealList.contains(key.get());})
-                            .map(Holder::value)
-                            .collect(ImmutableList.toImmutableList()));
-        }
-
-        return biomeFeatureCache.get(biome);
+        return biomeFeatureCache.computeIfAbsent(biome, b ->
+                b.getGenerationSettings().features().stream()
+                        .flatMap(HolderSet::stream)
+                        .flatMap(feature -> ((PlacedFeature)feature.value()).getFeatures())
+                        .filter(feature -> feature.unwrapKey().map(canSpawnFromBonemealList::contains).orElse(false))
+                        .map(Holder::value)
+                        .collect(ImmutableList.toImmutableList()));
     }
 
     Block getRandomFlowerAt(Level level, BlockPos pos, RandomSource randomSource)
     {
-        if(vanillaBiomes == null)
-        {
-            loadVanillaBiomes();
-        }
-        
         Holder<Biome> biomeEntry = level.getBiome(pos);
         ResourceKey<Biome> biomeKey = biomeEntry.unwrapKey().orElse(null);
         if (biomeKey == null)
@@ -199,11 +197,6 @@ public class FlowerMapRenderer
     
     public void renderPossibleFlowerNamesAt(Level level, BlockPos pos, int w, GuiGraphicsExtractor gui)
     {
-        if(vanillaBiomes == null)
-        {
-            loadVanillaBiomes();
-        }
-
         int k = 0;
         Holder<Biome> biomeEntry = level.getBiome(pos);
         ResourceKey<Biome> biomeKey = biomeEntry.unwrapKey().orElse(null);
@@ -291,38 +284,64 @@ public class FlowerMapRenderer
     
     void renderTexture()
     {
-        for(;;)
+        while (!Thread.currentThread().isInterrupted())
         {
-            if(textureRendering == true)
+            synchronized (renderLock)
             {
-                LocalPlayer player = minecraft.player;
-                if (player != null) {
-                    Level level = player.level();
-                    int px = player.getBlockX();
-                    int py = player.getBlockY();
-                    int pz = player.getBlockZ();
-                    BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(0, FlowerMapMain.config.fixedY, 0);
-                    if (FlowerMapMain.config.mode == FlowerMapConfig.EMode.PLAYER) pos.setY(py);
-
-                    for (int x = 0; x < 256; ++x) {
-                        for (int z = 0; z < 256; ++z) {
-                            pos.setX(px + x - 128);
-                            if (FlowerMapMain.config.mode == FlowerMapConfig.EMode.SURFACE) {
-                                int y = level.getHeight(Heightmap.Types.WORLD_SURFACE, px + x - 128, pz + z - 128);
-                                pos.setY(y);
-                            }
-                            pos.setZ(pz + z - 128);
-                            Block block = getRandomFlowerAt(level, pos, rand_render);
-                            texture.getPixels().setPixel(x, z, colorMap.getOrDefault(block, errorMap.getOrDefault(block, errorMap.get(Blocks.WOOL.green()))));
-                        }
+                while (!textureRendering)
+                {
+                    try
+                    {
+                        renderLock.wait();
                     }
+                    catch (InterruptedException e)
+                    {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+            }
+
+            LocalPlayer player = minecraft.player;
+            if (player != null)
+            {
+                Level level = player.level();
+                int px = player.getBlockX();
+                int py = player.getBlockY();
+                int pz = player.getBlockZ();
+                BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(0, FlowerMapMain.config.fixedY, 0);
+                if (FlowerMapMain.config.mode == FlowerMapConfig.EMode.PLAYER) pos.setY(py);
+
+                for (int x = 0; x < 256; ++x) {
+                    for (int z = 0; z < 256; ++z) {
+                        pos.setX(px + x - 128);
+                        if (FlowerMapMain.config.mode == FlowerMapConfig.EMode.SURFACE) {
+                            int y = level.getHeight(Heightmap.Types.WORLD_SURFACE, px + x - 128, pz + z - 128);
+                            pos.setY(y);
+                        }
+                        pos.setZ(pz + z - 128);
+                        Block block = getRandomFlowerAt(level, pos, rand_render);
+                        texture.getPixels().setPixel(x, z, colorMap.getOrDefault(block, errorMap.getOrDefault(block, errorMap.get(Blocks.WOOL.green()))));
+                    }
+                }
+
+                synchronized (renderLock)
+                {
                     textureRendering = false;
                 }
-                try { Thread.sleep(50); } catch (InterruptedException e) {}
             }
             else
             {
-                try { Thread.sleep(1); } catch (InterruptedException e) {}
+                // world not ready yet; briefly back off before re-checking
+                try
+                {
+                    Thread.sleep(50);
+                }
+                catch (InterruptedException e)
+                {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
             }
         }
     }
@@ -353,12 +372,16 @@ public class FlowerMapRenderer
         guiGraphics.pose().scale(FlowerMapMain.config.scale / window.getGuiScale());
         
         // RENDER THREAD CONTROL, TEXTURE UPLOAD
-        if (textureRendering == false)
+        synchronized (renderLock)
         {
-            Profiler.get().push("upload");
-            texture.upload();
-            Profiler.get().pop();
-            textureRendering = true;
+            if (!textureRendering)
+            {
+                Profiler.get().push("upload");
+                texture.upload();
+                Profiler.get().pop();
+                textureRendering = true;
+                renderLock.notifyAll();
+            }
         }
         
         // FLOWER GRADIENT TEXTURE
