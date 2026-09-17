@@ -60,6 +60,9 @@ public class FlowerMapRenderer
     Map<Biome, List<Feature>> biomeFeatureCache = new ConcurrentHashMap<>();
     Thread renderThread;
     volatile boolean textureRendering;
+    RenderSnapshot renderSnapshot;
+
+    record RenderSnapshot(Level level, BlockPos position, FlowerMapConfig.EMode mode, int fixedY) {}
     
     RegistryLookup<Biome> vanillaBiomes = null;
     ArrayList<ResourceKey<Feature>> canSpawnFromBonemealList = new ArrayList<>(10);
@@ -297,20 +300,20 @@ public class FlowerMapRenderer
         {
             if(textureRendering == true)
             {
-                LocalPlayer player = minecraft.player;
-                if (player != null) {
-                    Level level = player.level();
-                    int px = player.getBlockX();
-                    int py = player.getBlockY();
-                    int pz = player.getBlockZ();
-                    BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(0, FlowerMapMain.config.fixedY, 0);
-                    if (FlowerMapMain.config.mode == FlowerMapConfig.EMode.PLAYER) pos.setY(py);
+                RenderSnapshot snapshot = renderSnapshot;
+                if (snapshot != null) {
+                    Level level = snapshot.level();
+                    int px = snapshot.position().getX();
+                    int py = snapshot.position().getY();
+                    int pz = snapshot.position().getZ();
+                    BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(0, snapshot.fixedY(), 0);
+                    if (snapshot.mode() == FlowerMapConfig.EMode.PLAYER) pos.setY(py);
 
                     int endX = nextX + 8;
                     for (int x = nextX; x < endX; ++x) {
                         for (int z = 0; z < 256; ++z) {
                             pos.setX(px + x - 128);
-                            if (FlowerMapMain.config.mode == FlowerMapConfig.EMode.SURFACE) {
+                            if (snapshot.mode() == FlowerMapConfig.EMode.SURFACE) {
                                 int y = level.getHeight(Heightmap.Types.WORLD_SURFACE, px + x - 128, pz + z - 128);
                                 pos.setY(y);
                             }
@@ -322,8 +325,9 @@ public class FlowerMapRenderer
                     nextX = endX;
 
                     if (nextX >= 256) {
-                        textureRendering = false;
                         nextX = 0;
+                        renderSnapshot = null;
+                        textureRendering = false;
                     }
                 }
             }
@@ -362,6 +366,7 @@ public class FlowerMapRenderer
             Profiler.get().push("upload");
             texture.upload();
             Profiler.get().pop();
+            renderSnapshot = new RenderSnapshot(level, player.blockPosition().immutable(), FlowerMapMain.config.mode, FlowerMapMain.config.fixedY);
             textureRendering = true;
         }
         
